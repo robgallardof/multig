@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 from camoufox.sync_api import Camoufox
 
 
@@ -45,14 +47,28 @@ def main() -> None:
         if a.proxy_password:
             proxy["password"] = a.proxy_password
 
-    config = json.loads(a.config_json) if a.config_json else None
+    config = json.loads(a.config_json) if a.config_json else {}
+    if not isinstance(config, dict):
+        raise ValueError("config-json must be a JSON object.")
+
+    headless_env = os.getenv("CAMOUFOX_HEADLESS", "").strip().lower()
+    headless: object
+    if headless_env in {"1", "true", "yes"}:
+        headless = True
+    elif headless_env == "virtual":
+        headless = "virtual"
+    else:
+        headless = False
+
+    if sys.platform.startswith("linux") and not os.getenv("DISPLAY"):
+        headless = "virtual"
 
     with Camoufox(
         persistent_context=True,
         user_data_dir=a.profile,
-        headless=False,
+        headless=headless,
         proxy=proxy,
-        config=config,
+        **config,
     ) as ctx:
         page = ctx.new_page()
         page.goto(a.url)
