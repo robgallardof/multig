@@ -190,7 +190,7 @@ export default function HomePage() {
       const r = await fetch("/api/launch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, url }),
+        body: JSON.stringify({ id, url, proxyId: p?.proxyId }),
       });
       if (!r.ok) throw new Error(await r.text());
       showToast(t.messages.windowOpened);

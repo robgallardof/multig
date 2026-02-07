@@ -8,15 +8,16 @@ import { buildFingerprintConfig } from "../../../src/server/fingerprintConfig";
 
 /**
  * POST /api/launch
- * Body: { id: string, url: string }
+ * Body: { id: string, url: string, proxyId?: string }
  *
  * @since 2026-01-23
  */
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { id?: string; url?: string };
+  const body = (await req.json().catch(() => ({}))) as { id?: string; url?: string; proxyId?: string };
 
   const id = String(body.id || "");
   const url = String(body.url || "");
+  const proxyId = String(body.proxyId || "").trim();
 
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
   if (!url) return NextResponse.json({ error: "url is required" }, { status: 400 });
@@ -24,27 +25,33 @@ export async function POST(req: Request) {
   const profile = ProfileRepositorySqlite.getById(id);
   if (!profile) return NextResponse.json({ error: "profile not found" }, { status: 404 });
 
+  const settings = await SettingsRepository.load();
   let assigned = ProxyAssignmentService.getAssigned(id);
+
+  if (proxyId && assigned?.id !== proxyId) {
+    try {
+      ProxyAssignmentService.assign(id, proxyId);
+      assigned = ProxyAssignmentService.getAssigned(id);
+    } catch (e: any) {
+      return NextResponse.json({ error: String(e?.message || e) }, { status: 400 });
+    }
+  }
 
   if (!assigned) {
     try {
       assigned = ProxyAssignmentService.assignRandom(id);
     } catch (e: any) {
-      const settings = await SettingsRepository.load();
-      if (!settings.webshare?.token) {
-        return NextResponse.json({ error: "Configure Webshare before opening a profile." }, { status: 400 });
-      }
-
-      try {
-        await WebshareSyncService.sync();
-        assigned = ProxyAssignmentService.assignRandom(id);
-      } catch (inner: any) {
-        return NextResponse.json({ error: String(inner?.message || inner) }, { status: 400 });
+      if (settings.webshare?.token) {
+        try {
+          await WebshareSyncService.sync();
+          assigned = ProxyAssignmentService.assignRandom(id);
+        } catch {
+          assigned = null;
+        }
       }
     }
   }
 
-  const settings = await SettingsRepository.load();
   const proxyServer = assigned ? `http://${assigned.host}:${assigned.port}` : undefined;
   const proxyUsername = settings.webshare?.username;
   const proxyPassword = settings.webshare?.password;
