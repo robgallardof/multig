@@ -19,16 +19,24 @@ export class CamoufoxLauncher {
    * @returns PID or -1.
    * @since 2026-01-23
    */
-  public static launch(profileId: string, url: string, proxyServer?: string, proxyUsername?: string, proxyPassword?: string): number {
+  public static launch(
+    profileId: string,
+    url: string,
+    proxyServer?: string,
+    proxyUsername?: string,
+    proxyPassword?: string,
+    config?: Record<string, unknown>
+  ): number {
     const py = PythonSetup.python();
 
     const profileDir = path.join(AppPaths.profilesDir(), profileId);
 
     const args = ["-u", AppPaths.runOnePy(), "--profile", profileDir, "--url", url];
 
-if (proxyServer) args.push("--proxy-server", proxyServer);
-if (proxyUsername) args.push("--proxy-username", proxyUsername);
-if (proxyPassword) args.push("--proxy-password", proxyPassword);
+    if (proxyServer) args.push("--proxy-server", proxyServer);
+    if (proxyUsername) args.push("--proxy-username", proxyUsername);
+    if (proxyPassword) args.push("--proxy-password", proxyPassword);
+    if (config) args.push("--config-json", JSON.stringify(config));
 
     const child = spawn(py, args, {
       cwd: process.cwd(),

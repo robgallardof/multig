@@ -45,7 +45,15 @@ export class WebshareSyncService {
       const id = x.id || `${x.host}:${x.port}`;
       const labelParts = [x.country_code, x.city_name].filter(Boolean);
       const label = labelParts.length ? `${labelParts.join(" / ")} • ${x.host}:${x.port}` : `${x.host}:${x.port}`;
-      return { id: String(id), host: String(x.host), port: Number(x.port), label, source: "webshare" };
+      return {
+        id: String(id),
+        host: String(x.host),
+        port: Number(x.port),
+        label,
+        countryCode: x.country_code ? String(x.country_code) : undefined,
+        cityName: x.city_name ? String(x.city_name) : undefined,
+        source: "webshare",
+      };
     });
 
     ProxyPoolRepository.upsertMany(mapped);

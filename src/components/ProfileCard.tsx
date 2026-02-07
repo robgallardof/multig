@@ -27,7 +27,9 @@ export type ProfileVm = {
 export type ProfileCardProps = {
   onRotate: (id: string) => void;
   profile: ProfileVm;
-  onOpen: (id: string) => void;
+  onToggleActive: (id: string, nextActive: boolean) => void;
+  isActive: boolean;
+  disabled?: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
 };
@@ -80,12 +82,24 @@ export function ProfileCard(props: ProfileCardProps) {
 
       <div className="spacer" />
 
-      <button className="btn secondary" onClick={() => props.onOpen(p.id)} style={{ width: "100%" }}>
-        <span className="row" style={{ justifyContent: "center" }}>
+      <div className="toggleRow">
+        <span className="toggleLabelText">
           <EmojiIcon symbol="▶️" label="open" size={16} />
           {t.actions.open}
         </span>
-      </button>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={props.isActive}
+            onChange={(e) => props.onToggleActive(p.id, e.target.checked)}
+            disabled={props.disabled}
+          />
+          <span className="toggleTrack">
+            <span className="toggleThumb" />
+          </span>
+        </label>
+        <span className="toggleState">{props.isActive ? t.status.active : t.status.inactive}</span>
+      </div>
     </div>
   );
 }

@@ -21,6 +21,7 @@ export type ProfileModalValues = {
   name: string;
   icon: string;
   url?: string;
+  osType: "windows" | "mac" | "linux";
 };
 
 /**
@@ -48,12 +49,14 @@ export function ProfileModal(props: ProfileModalProps) {
   const [name, setName] = React.useState(props.initial.name);
   const [icon, setIcon] = React.useState(props.initial.icon);
   const [url, setUrl] = React.useState(props.initial.url || "");
+  const [osType, setOsType] = React.useState(props.initial.osType);
 
   React.useEffect(() => {
     setName(props.initial.name);
     setIcon(props.initial.icon);
     setUrl(props.initial.url || "");
-  }, [props.initial.name, props.initial.icon, props.initial.url, props.isOpen]);
+    setOsType(props.initial.osType);
+  }, [props.initial.name, props.initial.icon, props.initial.url, props.initial.osType, props.isOpen]);
 
   if (!props.isOpen) return null;
 
@@ -90,6 +93,13 @@ export function ProfileModal(props: ProfileModalProps) {
 
         <label className="label">{t.fields.url}</label>
         <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
+
+        <label className="label">{t.fields.osType}</label>
+        <select className="input" value={osType} onChange={(e) => setOsType(e.target.value as ProfileModalValues["osType"])}>
+          <option value="windows">{t.fields.osWindows}</option>
+          <option value="mac">{t.fields.osMac}</option>
+          <option value="linux">{t.fields.osLinux}</option>
+        </select>
         <div className="card" style={{ marginTop: 12 }}>
           <p className="small" style={{ margin: 0 }}>
             {t.ui.autoProxyNote}
@@ -102,7 +112,7 @@ export function ProfileModal(props: ProfileModalProps) {
           </button>
           <button
             className="btn"
-            onClick={() => props.onSubmit({ name: name.trim(), icon, url: url.trim() || undefined })}
+            onClick={() => props.onSubmit({ name: name.trim(), icon, url: url.trim() || undefined, osType })}
             disabled={!canSave}
             style={{ opacity: canSave ? 1 : 0.6 }}
           >

@@ -13,15 +13,25 @@ export class ProxyPoolRepository {
    *
    * @since 2026-01-23
    */
-  public static upsertMany(items: { id: string; host: string; port: number; label?: string; source: string }[]): void {
+  public static upsertMany(items: {
+    id: string;
+    host: string;
+    port: number;
+    label?: string;
+    source: string;
+    countryCode?: string;
+    cityName?: string;
+  }[]): void {
     const db = Db.get();
     const stmt = db.prepare(`
-      INSERT INTO proxies (id, host, port, label, source, createdAt)
-      VALUES (@id, @host, @port, @label, @source, @createdAt)
+      INSERT INTO proxies (id, host, port, label, countryCode, cityName, source, createdAt)
+      VALUES (@id, @host, @port, @label, @countryCode, @cityName, @source, @createdAt)
       ON CONFLICT(id) DO UPDATE SET
         host=excluded.host,
         port=excluded.port,
         label=excluded.label,
+        countryCode=excluded.countryCode,
+        cityName=excluded.cityName,
         source=excluded.source
     `);
 
@@ -33,6 +43,8 @@ export class ProxyPoolRepository {
           host: it.host,
           port: it.port,
           label: it.label ?? null,
+          countryCode: it.countryCode ?? null,
+          cityName: it.cityName ?? null,
           source: it.source,
           createdAt: now,
         });
@@ -59,7 +71,7 @@ export class ProxyPoolRepository {
     }
 
     let sql = `
-      SELECT p.id, p.host, p.port, p.label, p.source,
+      SELECT p.id, p.host, p.port, p.label, p.countryCode, p.cityName, p.source,
              a.profileId AS inUseBy
       FROM proxies p
       LEFT JOIN proxy_assignments a ON a.proxyId = p.id
@@ -80,10 +92,18 @@ export class ProxyPoolRepository {
    *
    * @since 2026-01-23
    */
-  public static pickRandomAvailable(): { id: string; host: string; port: number; label?: string; source: string } | null {
+  public static pickRandomAvailable(): {
+    id: string;
+    host: string;
+    port: number;
+    label?: string;
+    source: string;
+    countryCode?: string;
+    cityName?: string;
+  } | null {
     const db = Db.get();
     const row = db.prepare(`
-      SELECT p.id, p.host, p.port, p.label, p.source
+      SELECT p.id, p.host, p.port, p.label, p.countryCode, p.cityName, p.source
       FROM proxies p
       LEFT JOIN proxy_assignments a ON a.proxyId = p.id
       WHERE a.profileId IS NULL
@@ -97,6 +117,8 @@ export class ProxyPoolRepository {
       host: String(row.host),
       port: Number(row.port),
       label: row.label ? String(row.label) : undefined,
+      countryCode: row.countryCode ? String(row.countryCode) : undefined,
+      cityName: row.cityName ? String(row.cityName) : undefined,
       source: String(row.source),
     };
   }

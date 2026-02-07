@@ -25,6 +25,11 @@ export type Profile = {
   url?: string;
 
   /**
+   * OS type for fingerprint defaults.
+   */
+  osType?: "windows" | "mac" | "linux";
+
+  /**
    * ISO timestamp.
    */
   createdAt: string;
