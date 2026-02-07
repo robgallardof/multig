@@ -49,9 +49,9 @@ export class ProfileRepositorySqlite {
       name: input.name,
       icon: input.icon,
       url: input.url ?? null,
-      proxyServer: (input as any).proxyServer ?? null,
-      proxyUsername: (input as any).proxyUsername ?? null,
-      proxyPassword: (input as any).proxyPassword ?? null,
+      proxyServer: null,
+      proxyUsername: null,
+      proxyPassword: null,
       createdAt: input.createdAt,
       lastOpenedAt: (input as any).lastOpenedAt ?? null,
     });
@@ -74,7 +74,7 @@ export class ProfileRepositorySqlite {
     db.prepare(`
       UPDATE profiles
       SET name=@name, icon=@icon, url=@url,
-          proxyServer=@proxyServer, proxyUsername=@proxyUsername, proxyPassword=@proxyPassword,
+          proxyServer=NULL, proxyUsername=NULL, proxyPassword=NULL,
           createdAt=@createdAt, lastOpenedAt=@lastOpenedAt
       WHERE id=@id
     `).run({
@@ -82,9 +82,6 @@ export class ProfileRepositorySqlite {
       name: next.name,
       icon: next.icon,
       url: next.url ?? null,
-      proxyServer: next.proxyServer ?? null,
-      proxyUsername: next.proxyUsername ?? null,
-      proxyPassword: next.proxyPassword ?? null,
       createdAt: next.createdAt,
       lastOpenedAt: next.lastOpenedAt ?? null,
     });
@@ -109,9 +106,6 @@ export class ProfileRepositorySqlite {
       name: String(r.name),
       icon: String(r.icon),
       url: r.url ? String(r.url) : undefined,
-      proxyServer: r.proxyServer ? String(r.proxyServer) : undefined,
-      proxyUsername: r.proxyUsername ? String(r.proxyUsername) : undefined,
-      proxyPassword: r.proxyPassword ? String(r.proxyPassword) : undefined,
       createdAt: String(r.createdAt),
       lastOpenedAt: r.lastOpenedAt ? String(r.lastOpenedAt) : undefined,
     };

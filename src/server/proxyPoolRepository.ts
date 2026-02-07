@@ -74,4 +74,51 @@ export class ProxyPoolRepository {
 
     return db.prepare(sql).all(params) as any[];
   }
+
+  /**
+   * Picks one random available proxy (unassigned).
+   *
+   * @since 2026-01-23
+   */
+  public static pickRandomAvailable(): { id: string; host: string; port: number; label?: string; source: string } | null {
+    const db = Db.get();
+    const row = db.prepare(`
+      SELECT p.id, p.host, p.port, p.label, p.source
+      FROM proxies p
+      LEFT JOIN proxy_assignments a ON a.proxyId = p.id
+      WHERE a.profileId IS NULL
+      ORDER BY RANDOM()
+      LIMIT 1
+    `).get() as any;
+
+    if (!row) return null;
+    return {
+      id: String(row.id),
+      host: String(row.host),
+      port: Number(row.port),
+      label: row.label ? String(row.label) : undefined,
+      source: String(row.source),
+    };
+  }
+
+  /**
+   * Returns proxy pool counts (total + available).
+   *
+   * @since 2026-01-23
+   */
+  public static counts(): { total: number; available: number } {
+    const db = Db.get();
+    const totalRow = db.prepare("SELECT COUNT(*) as total FROM proxies").get() as any;
+    const availableRow = db.prepare(`
+      SELECT COUNT(*) as total
+      FROM proxies p
+      LEFT JOIN proxy_assignments a ON a.proxyId = p.id
+      WHERE a.profileId IS NULL
+    `).get() as any;
+
+    return {
+      total: Number(totalRow?.total || 0),
+      available: Number(availableRow?.total || 0),
+    };
+  }
 }
