@@ -4,6 +4,7 @@ import { ProfileRepositorySqlite } from "../../../src/server/profileRepositorySq
 import { ProxyAssignmentService } from "../../../src/server/proxyAssignmentService";
 import { SettingsRepository } from "../../../src/server/settingsRepository";
 import { WebshareSyncService } from "../../../src/server/webshareSyncService";
+import { buildFingerprintConfig } from "../../../src/server/fingerprintConfig";
 
 /**
  * POST /api/launch
@@ -47,8 +48,9 @@ export async function POST(req: Request) {
   const proxyServer = assigned ? `http://${assigned.host}:${assigned.port}` : undefined;
   const proxyUsername = settings.webshare?.username;
   const proxyPassword = settings.webshare?.password;
+  const fingerprintConfig = buildFingerprintConfig(profile, assigned ?? undefined);
 
-  const pid = CamoufoxLauncher.launch(id, url, proxyServer, proxyUsername, proxyPassword);
+  const pid = CamoufoxLauncher.launch(id, url, proxyServer, proxyUsername, proxyPassword, fingerprintConfig);
 
   // record last opened
   ProfileRepositorySqlite.update(id, { lastOpenedAt: new Date().toISOString() } as any);

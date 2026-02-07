@@ -17,6 +17,7 @@ type ApiProfile = {
   name: string;
   icon: string;
   url?: string;
+  osType?: "windows" | "mac" | "linux";
   proxyServer?: string;
   proxyLabel?: string;
   proxyId?: string;
@@ -45,6 +46,7 @@ export default function HomePage() {
   const [webshareOpen, setWebshareOpen] = useState(false);
   const [proxyStatus, setProxyStatus] = useState<ApiProxyStatus | null>(null);
   const [toast, setToast] = useState<string>("");
+  const [activeProfiles, setActiveProfiles] = useState<Record<string, boolean>>({});
 
   const vms: ProfileVm[] = useMemo(
     () => profiles.map(p => ({
@@ -93,6 +95,15 @@ export default function HomePage() {
   }
 
   useEffect(() => { void loadAll(); }, []);
+  useEffect(() => {
+    setActiveProfiles((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const p of profiles) {
+        if (prev[p.id]) next[p.id] = true;
+      }
+      return next;
+    });
+  }, [profiles]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -179,6 +190,7 @@ export default function HomePage() {
       });
       if (!r.ok) throw new Error(await r.text());
       showToast(t.messages.windowOpened);
+      setActiveProfiles((prev) => ({ ...prev, [id]: true }));
       await loadAll();
     } catch (e: any) {
       showToast(`❌ ${String(e?.message || e)}`);
@@ -211,6 +223,14 @@ export default function HomePage() {
     for (const p of profiles) {
       await openProfile(p.id);
     }
+  }
+
+  function toggleProfileActive(id: string, nextActive: boolean) {
+    if (nextActive) {
+      void openProfile(id);
+      return;
+    }
+    setActiveProfiles((prev) => ({ ...prev, [id]: false }));
   }
 
   async function setup() {
@@ -294,7 +314,9 @@ export default function HomePage() {
           <ProfileCard
             key={p.id}
             profile={p}
-            onOpen={(id) => openProfile(id)}
+            onToggleActive={(id, nextActive) => toggleProfileActive(id, nextActive)}
+            isActive={Boolean(activeProfiles[p.id])}
+            disabled={busy || !system?.venvExists}
             onEdit={(id) => { setEditId(id); setModalOpen(true); }}
             onDelete={(id) => deleteProfile(id)}
             onRotate={(id) => rotateProxy(id)}
@@ -325,6 +347,7 @@ export default function HomePage() {
           name: editing?.name || "",
           icon: editing?.icon || "👤",
           url: editing?.url || "",
+          osType: editing?.osType || "windows",
         }}
         onClose={() => setModalOpen(false)}
         onSubmit={(values) => {

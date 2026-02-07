@@ -54,7 +54,14 @@ export class ProxyAssignmentService {
    *
    * @since 2026-01-23
    */
-  public static assignRandom(profileId: string, options?: { force?: boolean }): { id: string; host: string; port: number; label?: string } {
+  public static assignRandom(profileId: string, options?: { force?: boolean }): {
+    id: string;
+    host: string;
+    port: number;
+    label?: string;
+    countryCode?: string;
+    cityName?: string;
+  } {
     const force = options?.force ?? false;
     const existing = ProxyAssignmentService.getAssigned(profileId);
     if (existing && !force) return existing;
@@ -68,7 +75,14 @@ export class ProxyAssignmentService {
     }
 
     ProxyAssignmentService.assign(profileId, pick.id);
-    return { id: pick.id, host: pick.host, port: pick.port, label: pick.label };
+    return {
+      id: pick.id,
+      host: pick.host,
+      port: pick.port,
+      label: pick.label,
+      countryCode: pick.countryCode,
+      cityName: pick.cityName,
+    };
   }
 
   /**
@@ -91,16 +105,30 @@ export class ProxyAssignmentService {
    *
    * @since 2026-01-23
    */
-  public static getAssigned(profileId: string): { id: string; host: string; port: number; label?: string } | null {
+  public static getAssigned(profileId: string): {
+    id: string;
+    host: string;
+    port: number;
+    label?: string;
+    countryCode?: string;
+    cityName?: string;
+  } | null {
     const db = Db.get();
     const row = db.prepare(`
-      SELECT p.id, p.host, p.port, p.label
+      SELECT p.id, p.host, p.port, p.label, p.countryCode, p.cityName
       FROM proxy_assignments a
       JOIN proxies p ON p.id = a.proxyId
       WHERE a.profileId = ?
     `).get(profileId) as any;
 
     if (!row) return null;
-    return { id: String(row.id), host: String(row.host), port: Number(row.port), label: row.label ? String(row.label) : undefined };
+    return {
+      id: String(row.id),
+      host: String(row.host),
+      port: Number(row.port),
+      label: row.label ? String(row.label) : undefined,
+      countryCode: row.countryCode ? String(row.countryCode) : undefined,
+      cityName: row.cityName ? String(row.cityName) : undefined,
+    };
   }
 }

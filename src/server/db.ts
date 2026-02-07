@@ -49,6 +49,7 @@ export class Db {
         name TEXT NOT NULL,
         icon TEXT NOT NULL,
         url TEXT NULL,
+        osType TEXT NULL,
         proxyServer TEXT NULL,
         proxyUsername TEXT NULL,
         proxyPassword TEXT NULL,
@@ -61,6 +62,8 @@ export class Db {
         host TEXT NOT NULL,
         port INTEGER NOT NULL,
         label TEXT NULL,
+        countryCode TEXT NULL,
+        cityName TEXT NULL,
         source TEXT NOT NULL,
         createdAt TEXT NOT NULL
       );
@@ -76,5 +79,21 @@ export class Db {
 
       CREATE INDEX IF NOT EXISTS idx_proxies_source ON proxies(source);
     `);
+
+    const tableInfo = (name: string) => db.prepare(`PRAGMA table_info(${name})`).all() as { name: string }[];
+    const hasColumn = (table: string, column: string) =>
+      tableInfo(table).some((row) => row.name === column);
+
+    if (!hasColumn("profiles", "osType")) {
+      db.exec("ALTER TABLE profiles ADD COLUMN osType TEXT NULL");
+    }
+
+    if (!hasColumn("proxies", "countryCode")) {
+      db.exec("ALTER TABLE proxies ADD COLUMN countryCode TEXT NULL");
+    }
+
+    if (!hasColumn("proxies", "cityName")) {
+      db.exec("ALTER TABLE proxies ADD COLUMN cityName TEXT NULL");
+    }
   }
 }

@@ -19,17 +19,20 @@ export async function GET() {
 
 /**
  * POST /api/profiles
- * Body: { name: string, icon: string, url?: string }
+ * Body: { name: string, icon: string, url?: string, osType?: string }
  *
  * @since 2026-01-23
  */
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => ({}))) as { name?: string; icon?: string; url?: string };
+    const body = (await req.json().catch(() => ({}))) as { name?: string; icon?: string; url?: string; osType?: string };
 
     const name = body.name ? String(body.name).trim() : "";
     const icon = body.icon ? String(body.icon).trim() : "fox";
     const url = body.url ? String(body.url).trim() : undefined;
+    const osType = body.osType === "mac" || body.osType === "linux" || body.osType === "windows"
+      ? body.osType
+      : "windows";
 
     if (!name) {
       return NextResponse.json({ error: "name is required", profiles: [] }, { status: 400 });
@@ -40,6 +43,7 @@ export async function POST(req: Request) {
       name,
       icon,
       url,
+      osType,
       createdAt: new Date().toISOString(),
     };
 

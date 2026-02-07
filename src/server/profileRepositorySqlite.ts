@@ -40,15 +40,17 @@ export class ProfileRepositorySqlite {
   public static create(input: Omit<Profile, "id"> & { id?: string }): Profile[] {
     const db = Db.get();
     const id = input.id || crypto.randomUUID();
+    const osType = input.osType ?? "windows";
 
     db.prepare(`
-      INSERT INTO profiles (id, name, icon, url, proxyServer, proxyUsername, proxyPassword, createdAt, lastOpenedAt)
-      VALUES (@id, @name, @icon, @url, @proxyServer, @proxyUsername, @proxyPassword, @createdAt, @lastOpenedAt)
+      INSERT INTO profiles (id, name, icon, url, osType, proxyServer, proxyUsername, proxyPassword, createdAt, lastOpenedAt)
+      VALUES (@id, @name, @icon, @url, @osType, @proxyServer, @proxyUsername, @proxyPassword, @createdAt, @lastOpenedAt)
     `).run({
       id,
       name: input.name,
       icon: input.icon,
       url: input.url ?? null,
+      osType,
       proxyServer: null,
       proxyUsername: null,
       proxyPassword: null,
@@ -70,10 +72,11 @@ export class ProfileRepositorySqlite {
     if (!current) throw new Error("Profile not found.");
 
     const next: any = { ...current, ...patch };
+    if (!next.osType) next.osType = "windows";
 
     db.prepare(`
       UPDATE profiles
-      SET name=@name, icon=@icon, url=@url,
+      SET name=@name, icon=@icon, url=@url, osType=@osType,
           proxyServer=NULL, proxyUsername=NULL, proxyPassword=NULL,
           createdAt=@createdAt, lastOpenedAt=@lastOpenedAt
       WHERE id=@id
@@ -82,6 +85,7 @@ export class ProfileRepositorySqlite {
       name: next.name,
       icon: next.icon,
       url: next.url ?? null,
+      osType: next.osType ?? "windows",
       createdAt: next.createdAt,
       lastOpenedAt: next.lastOpenedAt ?? null,
     });
@@ -106,6 +110,7 @@ export class ProfileRepositorySqlite {
       name: String(r.name),
       icon: String(r.icon),
       url: r.url ? String(r.url) : undefined,
+      osType: r.osType ? String(r.osType) as Profile["osType"] : "windows",
       createdAt: String(r.createdAt),
       lastOpenedAt: r.lastOpenedAt ? String(r.lastOpenedAt) : undefined,
     };
