@@ -5,21 +5,6 @@
  */
 export type Profile = {
   /**
-   * Optional proxy server URL, e.g. http://ip:port
-   */
-  proxyServer?: string;
-
-  /**
-   * Optional proxy username.
-   */
-  proxyUsername?: string;
-
-  /**
-   * Optional proxy password (stored server-side only).
-   */
-  proxyPassword?: string;
-
-  /**
    * Stable id (uuid).
    */
   id: string;

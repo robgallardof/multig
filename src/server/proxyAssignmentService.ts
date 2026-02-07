@@ -1,5 +1,6 @@
 import { Db } from "./db";
 import { ProfileRepositorySqlite } from "./profileRepositorySqlite";
+import { ProxyPoolRepository } from "./proxyPoolRepository";
 
 /**
  * Proxy assignment service (manual, non-reusable).
@@ -42,12 +43,32 @@ export class ProxyAssignmentService {
       db.prepare("INSERT INTO proxy_assignments (profileId, proxyId, assignedAt) VALUES (?,?,?)")
         .run(profileId, proxyId, now);
 
-      // Also set proxyServer on profile so UI/launch stays simple
-      const serverUrl = `http://${proxy.host}:${proxy.port}`;
-      ProfileRepositorySqlite.update(profileId, { proxyServer: serverUrl });
     });
 
     tx();
+  }
+
+  /**
+   * Assigns a random available proxy to a profile.
+   * When force = false and the profile already has a proxy, it returns the existing assignment.
+   *
+   * @since 2026-01-23
+   */
+  public static assignRandom(profileId: string, options?: { force?: boolean }): { id: string; host: string; port: number; label?: string } {
+    const force = options?.force ?? false;
+    const existing = ProxyAssignmentService.getAssigned(profileId);
+    if (existing && !force) return existing;
+
+    const pick = ProxyPoolRepository.pickRandomAvailable();
+    if (!pick) {
+      if (existing && force) {
+        throw new Error("No available proxies to rotate.");
+      }
+      throw new Error("No available proxies.");
+    }
+
+    ProxyAssignmentService.assign(profileId, pick.id);
+    return { id: pick.id, host: pick.host, port: pick.port, label: pick.label };
   }
 
   /**
@@ -60,7 +81,6 @@ export class ProxyAssignmentService {
 
     const tx = db.transaction(() => {
       db.prepare("DELETE FROM proxy_assignments WHERE profileId=?").run(profileId);
-      ProfileRepositorySqlite.update(profileId, { proxyServer: undefined });
     });
 
     tx();

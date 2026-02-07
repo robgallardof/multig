@@ -1,6 +1,7 @@
 "use client";
 
-import { Play, Pencil, Trash2, Clock } from "lucide-react";
+import { Play, Pencil, Trash2, Clock, Shuffle } from "lucide-react";
+import { es as t } from "../i18n/es";
 
 /**
  * Profile card view model.
@@ -15,6 +16,7 @@ export type ProfileVm = {
   lastOpenedAt?: string;
   hasProxy?: boolean;
   proxyServer?: string;
+  proxyLabel?: string;
 };
 
 /**
@@ -23,7 +25,7 @@ export type ProfileVm = {
  * @since 2026-01-23
  */
 export type ProfileCardProps = {
-  onRelease: (id: string) => void;
+  onRotate: (id: string) => void;
   profile: ProfileVm;
   onOpen: (id: string) => void;
   onEdit: (id: string) => void;
@@ -52,21 +54,25 @@ export function ProfileCard(props: ProfileCardProps) {
             <div className="pMeta">
               <span className="badge">
                 <Clock size={14} />
-                {last ? last : "Nunca abierto"}
+                {last ? last : t.status.neverOpened}
               </span>
               <span className="badge" style={{marginLeft:8}}>
-                {(p.hasProxy || (p.proxyServer && p.proxyServer.length>0)) ? "🛡️ Proxy configurado" : "🌐 Sin proxy"}
+                {p.hasProxy
+                  ? `🛡️ ${p.proxyLabel || p.proxyServer || t.status.proxyAssigned}`
+                  : `🌐 ${t.status.proxyPending}`}
               </span>
             </div>
           </div>
         </div>
 
         <div className="row">
-          <button className="btn secondary" onClick={() => props.onEdit(p.id)} title="Editar">
+          <button className="btn secondary" onClick={() => props.onEdit(p.id)} title={t.actions.edit}>
             <Pencil size={16} />
           </button>
-          <button className="btn secondary" onClick={() => props.onRelease(p.id)} title="Liberar proxy">🔓</button>
-          <button className="btn danger" onClick={() => props.onDelete(p.id)} title="Eliminar">
+          <button className="btn secondary" onClick={() => props.onRotate(p.id)} title={t.actions.rotateIp}>
+            <Shuffle size={16} />
+          </button>
+          <button className="btn danger" onClick={() => props.onDelete(p.id)} title={t.actions.delete}>
             <Trash2 size={16} />
           </button>
         </div>
@@ -77,7 +83,7 @@ export function ProfileCard(props: ProfileCardProps) {
       <button className="btn secondary" onClick={() => props.onOpen(p.id)} style={{ width: "100%" }}>
         <span className="row" style={{ justifyContent: "center" }}>
           <Play size={16} />
-          Abrir
+          {t.actions.open}
         </span>
       </button>
     </div>

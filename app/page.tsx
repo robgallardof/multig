@@ -18,7 +18,8 @@ type ApiProfile = {
   icon: string;
   url?: string;
   proxyServer?: string;
-  proxyUsername?: string;
+  proxyLabel?: string;
+  proxyId?: string;
   hasProxy?: boolean;
   createdAt: string;
   lastOpenedAt?: string;
@@ -26,6 +27,7 @@ type ApiProfile = {
 
 type ApiProfilesResponse = { profiles: ApiProfile[]; createdId?: string };
 type ApiSystemStatus = { venvExists: boolean };
+type ApiProxyStatus = { total: number; available: number };
 
 /**
  * Home page.
@@ -41,22 +43,41 @@ export default function HomePage() {
   const [system, setSystem] = useState<ApiSystemStatus | null>(null);
   const [webshare, setWebshare] = useState<WebsharePublicStatus | null>(null);
   const [webshareOpen, setWebshareOpen] = useState(false);
+  const [proxyStatus, setProxyStatus] = useState<ApiProxyStatus | null>(null);
   const [toast, setToast] = useState<string>("");
 
   const vms: ProfileVm[] = useMemo(
-    () => profiles.map(p => ({ id: p.id, name: p.name, icon: p.icon, createdAt: p.createdAt, lastOpenedAt: p.lastOpenedAt, hasProxy: p.hasProxy, proxyServer: (p as any).proxyServer })),
+    () => profiles.map(p => ({
+      id: p.id,
+      name: p.name,
+      icon: p.icon,
+      createdAt: p.createdAt,
+      lastOpenedAt: p.lastOpenedAt,
+      hasProxy: p.hasProxy,
+      proxyServer: p.proxyServer,
+      proxyLabel: p.proxyLabel,
+    })),
     [profiles]
   );
 
   async function safeJson<T>(r: Response): Promise<T> {
-  const text = await r.text();
-  if (!text) throw new Error("Empty response body");
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new Error(text);
+    const text = await r.text();
+    if (!text) throw new Error("Empty response body");
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new Error(text);
+    }
   }
-}
+
+  async function loadProxyStatus() {
+    try {
+      const p = await fetch("/api/proxies/status", { cache: "no-store" });
+      setProxyStatus(await safeJson<ApiProxyStatus>(p));
+    } catch {
+      setProxyStatus(null);
+    }
+  }
 
   async function loadAll() {
     const r = await fetch("/api/profiles", { cache: "no-store" });
@@ -68,6 +89,7 @@ export default function HomePage() {
 
     const w = await fetch("/api/settings/webshare", { cache: "no-store" });
     setWebshare(await safeJson<WebsharePublicStatus>(w));
+    await loadProxyStatus();
   }
 
   useEffect(() => { void loadAll(); }, []);
@@ -75,6 +97,12 @@ export default function HomePage() {
   function showToast(msg: string) {
     setToast(msg);
     window.setTimeout(() => setToast(""), 3500);
+  }
+
+  function formatProxiesAvailable(available: number | string, total: number | string) {
+    return t.ui.proxiesAvailableFormat
+      .replace("{available}", String(available))
+      .replace("{total}", String(total));
   }
 
   async function createProfile(values: ProfileModalValues) {
@@ -89,20 +117,9 @@ export default function HomePage() {
       const j = await safeJson<ApiProfilesResponse>(r);
       setProfiles(j.profiles || []);
 
-      const proxyId = (values as any).proxyId as string | undefined;
-      if (proxyId && j.createdId) {
-        const ar = await fetch(`/api/profiles/${encodeURIComponent(j.createdId)}/assign-proxy`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ proxyId }),
-        });
-        if (ar.ok) {
-          const aj = (await ar.json()) as ApiProfilesResponse;
-          setProfiles(aj.profiles || []);
-        }
-      }
-
-      showToast("✅ Perfil creado");
+      showToast(t.messages.profileCreated);
+    } catch (e: any) {
+      showToast(`❌ ${String(e?.message || e)}`);
     } finally {
       setBusy(false);
     }
@@ -120,20 +137,9 @@ export default function HomePage() {
       const j = await safeJson<ApiProfilesResponse>(r);
       setProfiles(j.profiles || []);
 
-      const proxyId = (values as any).proxyId as string | undefined;
-      if (proxyId) {
-        const ar = await fetch(`/api/profiles/${encodeURIComponent(id)}/assign-proxy`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ proxyId }),
-        });
-        if (ar.ok) {
-          const aj = (await ar.json()) as ApiProfilesResponse;
-          setProfiles(aj.profiles || []);
-        }
-      }
-
-      showToast("✅ Perfil actualizado");
+      showToast(t.messages.profileUpdated);
+    } catch (e: any) {
+      showToast(`❌ ${String(e?.message || e)}`);
     } finally {
       setBusy(false);
     }
@@ -147,7 +153,9 @@ export default function HomePage() {
       if (!r.ok) throw new Error(await r.text());
       const j = await safeJson<ApiProfilesResponse>(r);
       setProfiles(j.profiles || []);
-      showToast("🗑️ Perfil eliminado");
+      showToast(t.messages.profileDeleted);
+    } catch (e: any) {
+      showToast(`❌ ${String(e?.message || e)}`);
     } finally {
       setBusy(false);
     }
@@ -158,7 +166,7 @@ export default function HomePage() {
     const url = (p?.url && p.url.trim()) ? p.url.trim() : defaultUrl.trim();
 
     if (!system?.venvExists) {
-      showToast("⚠️ Primero prepara el entorno (Instalar / Preparar).");
+      showToast(t.messages.setupRequired);
       return;
     }
 
@@ -170,25 +178,34 @@ export default function HomePage() {
         body: JSON.stringify({ id, url }),
       });
       if (!r.ok) throw new Error(await r.text());
-      showToast("🚀 Ventana abierta");
+      showToast(t.messages.windowOpened);
       await loadAll();
+    } catch (e: any) {
+      showToast(`❌ ${String(e?.message || e)}`);
     } finally {
       setBusy(false);
     }
   }
 
-  async function releaseProxy(id: string) {
-  setBusy(true);
-  try {
-    const r = await fetch(`/api/profiles/${encodeURIComponent(id)}/release-proxy`, { method: "POST" });
-    if (!r.ok) throw new Error(await r.text());
-    const j = await safeJson<ApiProfilesResponse>(r);
-    setProfiles(j.profiles || []);
-    showToast("🔓 Proxy liberado");
-  } finally {
-    setBusy(false);
+  async function rotateProxy(id: string) {
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/profiles/${encodeURIComponent(id)}/assign-proxy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "random" }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const j = await safeJson<ApiProfilesResponse>(r);
+      setProfiles(j.profiles || []);
+      showToast(t.messages.rotateSuccess);
+      await loadProxyStatus();
+    } catch (e: any) {
+      showToast(`❌ ${String(e?.message || e)}`);
+    } finally {
+      setBusy(false);
+    }
   }
-}
 
   async function openAll() {
     for (const p of profiles) {
@@ -201,8 +218,10 @@ export default function HomePage() {
     try {
       const r = await fetch("/api/system/setup", { method: "POST" });
       if (!r.ok) throw new Error(await r.text());
-      showToast("✅ Entorno listo");
+      showToast(t.messages.setupReady);
       await loadAll();
+    } catch (e: any) {
+      showToast(`❌ ${String(e?.message || e)}`);
     } finally {
       setBusy(false);
     }
@@ -235,8 +254,8 @@ export default function HomePage() {
             <span className="row"><RefreshCw size={16} />{t.actions.refresh}</span>
           </button>
 
-          <button className="btn secondary" onClick={() => setWebshareOpen(true)} disabled={busy} title="Webshare">
-            <span className="row"><Settings size={16} />Webshare</span>
+          <button className="btn secondary" onClick={() => setWebshareOpen(true)} disabled={busy} title={t.actions.webshare}>
+            <span className="row"><Settings size={16} />{t.actions.webshare}</span>
           </button>
 
           <button className="btn secondary" onClick={() => setup()} disabled={busy} title={t.actions.setup}>
@@ -259,8 +278,15 @@ export default function HomePage() {
         <span className="badge">
           {system?.venvExists ? "🟢 " + t.status.ready : "🟠 " + t.status.notReady}
         </span>
-        <span className="badge">Webshare: {webshare?.configured ? "🟢" : "🟠"}</span>
-        <span className="badge">{profiles.length} perfiles</span>
+        <span className="badge">
+          {t.ui.webshareBadge}: {webshare?.configured ? "🟢" : "🟠"}
+        </span>
+        <span className="badge">
+          {proxyStatus
+            ? `${t.status.proxiesAvailable}: ${formatProxiesAvailable(proxyStatus.available, proxyStatus.total)}`
+            : `${t.status.proxiesAvailable}: —`}
+        </span>
+        <span className="badge">{profiles.length} {t.ui.profilesCount}</span>
       </div>
 
       <div className="grid">
@@ -271,7 +297,7 @@ export default function HomePage() {
             onOpen={(id) => openProfile(id)}
             onEdit={(id) => { setEditId(id); setModalOpen(true); }}
             onDelete={(id) => deleteProfile(id)}
-            onRelease={(id) => releaseProxy(id)}
+            onRotate={(id) => rotateProxy(id)}
           />
         ))}
       </div>
@@ -286,7 +312,7 @@ export default function HomePage() {
           border:"1px solid var(--border)", borderRadius:12, background:"rgba(17,27,46,.95)",
           boxShadow:"var(--shadow)", color:"var(--text)", maxWidth:420
         }}>
-          <div style={{ fontWeight:800, marginBottom:4 }}>Status</div>
+          <div style={{ fontWeight:800, marginBottom:4 }}>{t.ui.statusTitle}</div>
           <div className="small">{toast}</div>
         </div>
       )}
@@ -294,13 +320,11 @@ export default function HomePage() {
       <ProfileModal
         mode={editId ? "edit" : "create"}
         isOpen={modalOpen}
-        title={editId ? "Editar perfil" : "Crear perfil"}
+        title={editId ? t.ui.editProfileTitle : t.ui.createProfileTitle}
         initial={{
           name: editing?.name || "",
           icon: editing?.icon || "👤",
           url: editing?.url || "",
-          proxyServer: (editing as any)?.proxyServer || "",
-          proxyUsername: (editing as any)?.proxyUsername || "",
         }}
         onClose={() => setModalOpen(false)}
         onSubmit={(values) => {
@@ -314,7 +338,8 @@ export default function HomePage() {
   isOpen={webshareOpen}
   status={webshare}
   onClose={() => setWebshareOpen(false)}
-  onSaved={(s) => { setWebshare(s); }}
+  onSaved={(s) => { setWebshare(s); void loadAll(); }}
+  onSynced={() => { void loadProxyStatus(); }}
 />
 
 </main>
