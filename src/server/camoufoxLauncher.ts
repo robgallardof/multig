@@ -41,8 +41,11 @@ export class CamoufoxLauncher {
     const child = spawn(py, args, {
       cwd: process.cwd(),
       stdio: "ignore",
+      detached: true,
       windowsHide: false,
     });
+
+    child.unref();
 
     return child.pid ?? -1;
   }

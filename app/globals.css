@@ -101,6 +101,8 @@ a{color:inherit}
 .toggle input:checked + .toggleTrack .toggleThumb{transform:translateX(20px);background:var(--ok)}
 .toggle input:disabled + .toggleTrack{opacity:.5;cursor:not-allowed}
 .toggleState{font-size:12px;color:var(--muted);font-weight:700}
+.langToggle{display:flex;align-items:center;gap:8px;margin-left:auto}
+.langToggle .toggleLabelText{font-size:12px;color:var(--muted)}
 .modalBg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px}
 .modal{
   width:min(560px,100%);

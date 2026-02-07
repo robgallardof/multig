@@ -85,6 +85,7 @@ export const es = {
     webshareBadge: "Webshare",
     createProfileTitle: "Crear perfil",
     editProfileTitle: "Editar perfil",
+    languageToggle: "Idioma",
     webshareSecurityNote:
       "Tu token/credenciales se guardan solo en el servidor y encriptados en disco. La UI no vuelve a recibirlos. " +
       "La asignación de IP es automática y aleatoria al abrir cada perfil (sin repetirse entre instancias activas).",

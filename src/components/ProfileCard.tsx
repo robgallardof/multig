@@ -1,6 +1,6 @@
 "use client";
 
-import { es as t } from "../i18n/es";
+import type { Translations } from "../i18n";
 import { EmojiIcon } from "./EmojiIcon";
 
 /**
@@ -27,11 +27,12 @@ export type ProfileVm = {
 export type ProfileCardProps = {
   onRotate: (id: string) => void;
   profile: ProfileVm;
-  onToggleActive: (id: string, nextActive: boolean) => void;
+  onOpen: (id: string) => void;
   isActive: boolean;
   disabled?: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  t: Translations;
 };
 
 /**
@@ -43,6 +44,7 @@ export type ProfileCardProps = {
  */
 export function ProfileCard(props: ProfileCardProps) {
   const p = props.profile;
+  const t = props.t;
 
   const last = p.lastOpenedAt ? new Date(p.lastOpenedAt).toLocaleString() : null;
 
@@ -87,18 +89,12 @@ export function ProfileCard(props: ProfileCardProps) {
           <EmojiIcon symbol="▶️" label="open" size={16} />
           {t.actions.open}
         </span>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={props.isActive}
-            onChange={(e) => props.onToggleActive(p.id, e.target.checked)}
-            disabled={props.disabled}
-          />
-          <span className="toggleTrack">
-            <span className="toggleThumb" />
-          </span>
-        </label>
-        <span className="toggleState">{props.isActive ? t.status.active : t.status.inactive}</span>
+        <div className="row" style={{ justifyContent: "flex-end", flex: 1 }}>
+          <button className="btn" onClick={() => props.onOpen(p.id)} disabled={props.disabled}>
+            {t.actions.open}
+          </button>
+          <span className="toggleState">{props.isActive ? t.status.active : t.status.inactive}</span>
+        </div>
       </div>
     </div>
   );

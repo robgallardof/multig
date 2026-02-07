@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { es as t } from "../i18n/es";
+import type { Translations } from "../i18n";
 import { EmojiIcon } from "./EmojiIcon";
 
 /**
@@ -28,6 +28,7 @@ export type WebshareSettingsModalProps = {
   onClose: () => void;
   onSaved: (status: WebsharePublicStatus) => void;
   onSynced?: () => void;
+  t: Translations;
 };
 
 /**
@@ -41,6 +42,7 @@ export type WebshareSettingsModalProps = {
  * @since 2026-01-23
  */
 export function WebshareSettingsModal(props: WebshareSettingsModalProps) {
+  const t = props.t;
   const [token, setToken] = React.useState("");
   const [username, setUsername] = React.useState(props.status?.username || "");
   const [password, setPassword] = React.useState("");

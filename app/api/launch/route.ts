@@ -51,6 +51,9 @@ export async function POST(req: Request) {
   const fingerprintConfig = buildFingerprintConfig(profile, assigned ?? undefined);
 
   const pid = CamoufoxLauncher.launch(id, url, proxyServer, proxyUsername, proxyPassword, fingerprintConfig);
+  if (pid <= 0) {
+    return NextResponse.json({ error: "Failed to launch Camoufox." }, { status: 500 });
+  }
 
   // record last opened
   ProfileRepositorySqlite.update(id, { lastOpenedAt: new Date().toISOString() } as any);
