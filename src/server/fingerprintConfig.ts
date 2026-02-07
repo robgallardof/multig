@@ -46,9 +46,10 @@ const osDefaults = {
   },
 } as const;
 
-export function buildFingerprintConfig(profile: Profile, proxy?: ProxyMeta) {
+export function buildCamoufoxOptions(profile: Profile, proxy?: ProxyMeta) {
   const osType = profile.osType ?? "windows";
   const os = osDefaults[osType] ?? osDefaults.windows;
+  const camoufoxOs = osType === "mac" ? "macos" : osType;
   const countryCode = proxy?.countryCode ? proxy.countryCode.toUpperCase() : "US";
   const locale = localeByCountry[countryCode] ?? {
     locale: "en-US",
@@ -57,30 +58,10 @@ export function buildFingerprintConfig(profile: Profile, proxy?: ProxyMeta) {
     acceptLanguage: "en-US,en;q=0.9",
   };
 
-  const baseLanguage = locale.language.split("-")[0];
-  const languages = [locale.language, baseLanguage, "en-US"].filter((value, index, array) => array.indexOf(value) === index);
-
   return {
-    navigator: {
-      userAgent: os.userAgent,
-      platform: os.platform,
-      language: locale.language,
-      languages,
-    },
-    headers: {
-      "user-agent": os.userAgent,
-      "accept-language": locale.acceptLanguage,
-    },
-    intl: {
-      locale: locale.locale,
-      timezone: locale.timezone,
-    },
+    os: camoufoxOs,
     fonts: os.fonts,
-    "cursor-movement": {
-      humanize: true,
-      "humanize:minTime": 0.18,
-      "humanize:maxTime": 1.1,
-      showcursor: true,
-    },
+    locale: locale.locale,
+    humanize: true,
   };
 }

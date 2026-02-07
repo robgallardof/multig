@@ -4,7 +4,7 @@ import { ProfileRepositorySqlite } from "../../../src/server/profileRepositorySq
 import { ProxyAssignmentService } from "../../../src/server/proxyAssignmentService";
 import { SettingsRepository } from "../../../src/server/settingsRepository";
 import { WebshareSyncService } from "../../../src/server/webshareSyncService";
-import { buildFingerprintConfig } from "../../../src/server/fingerprintConfig";
+import { buildCamoufoxOptions } from "../../../src/server/fingerprintConfig";
 
 /**
  * POST /api/launch
@@ -55,9 +55,9 @@ export async function POST(req: Request) {
   const proxyServer = assigned ? `http://${assigned.host}:${assigned.port}` : undefined;
   const proxyUsername = settings.webshare?.username;
   const proxyPassword = settings.webshare?.password;
-  const fingerprintConfig = buildFingerprintConfig(profile, assigned ?? undefined);
+  const camoufoxOptions = buildCamoufoxOptions(profile, assigned ?? undefined);
 
-  const pid = CamoufoxLauncher.launch(id, url, proxyServer, proxyUsername, proxyPassword, fingerprintConfig);
+  const pid = CamoufoxLauncher.launch(id, url, proxyServer, proxyUsername, proxyPassword, camoufoxOptions);
   if (pid <= 0) {
     return NextResponse.json({ error: "Failed to launch Camoufox." }, { status: 500 });
   }
