@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { es as t } from "../src/i18n/es";
+import { en, es } from "../src/i18n";
+import type { Translations } from "../src/i18n";
 import { WebshareSettingsModal, type WebsharePublicStatus } from "../src/components/WebshareSettingsModal";
 import { ProfileCard, type ProfileVm } from "../src/components/ProfileCard";
 import { ProfileModal, type ProfileModalValues } from "../src/components/ProfileModal";
@@ -47,6 +48,9 @@ export default function HomePage() {
   const [proxyStatus, setProxyStatus] = useState<ApiProxyStatus | null>(null);
   const [toast, setToast] = useState<string>("");
   const [activeProfiles, setActiveProfiles] = useState<Record<string, boolean>>({});
+  const [language, setLanguage] = useState<"es" | "en">("es");
+
+  const t: Translations = useMemo(() => (language === "es" ? es : en), [language]);
 
   const vms: ProfileVm[] = useMemo(
     () => profiles.map(p => ({
@@ -225,14 +229,6 @@ export default function HomePage() {
     }
   }
 
-  function toggleProfileActive(id: string, nextActive: boolean) {
-    if (nextActive) {
-      void openProfile(id);
-      return;
-    }
-    setActiveProfiles((prev) => ({ ...prev, [id]: false }));
-  }
-
   async function setup() {
     setBusy(true);
     try {
@@ -289,6 +285,22 @@ export default function HomePage() {
           <button className="btn" onClick={() => { setEditId(null); setModalOpen(true); }} disabled={busy}>
             <span className="row"><EmojiIcon symbol="➕" label="create" size={16} />{t.actions.create}</span>
           </button>
+
+          <div className="langToggle" aria-label={t.ui.languageToggle}>
+            <span className="toggleLabelText">ES</span>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={language === "en"}
+                onChange={(e) => setLanguage(e.target.checked ? "en" : "es")}
+                aria-label={t.ui.languageToggle}
+              />
+              <span className="toggleTrack">
+                <span className="toggleThumb" />
+              </span>
+            </label>
+            <span className="toggleLabelText">EN</span>
+          </div>
         </div>
       </div>
 
@@ -314,12 +326,13 @@ export default function HomePage() {
           <ProfileCard
             key={p.id}
             profile={p}
-            onToggleActive={(id, nextActive) => toggleProfileActive(id, nextActive)}
+            onOpen={(id) => void openProfile(id)}
             isActive={Boolean(activeProfiles[p.id])}
             disabled={busy || !system?.venvExists}
             onEdit={(id) => { setEditId(id); setModalOpen(true); }}
             onDelete={(id) => deleteProfile(id)}
             onRotate={(id) => rotateProxy(id)}
+            t={t}
           />
         ))}
       </div>
@@ -355,6 +368,7 @@ export default function HomePage() {
           if (editId) void updateProfile(editId, values);
           else void createProfile(values);
         }}
+        t={t}
       />
     
 <WebshareSettingsModal
@@ -363,6 +377,7 @@ export default function HomePage() {
   onClose={() => setWebshareOpen(false)}
   onSaved={(s) => { setWebshare(s); void loadAll(); }}
   onSynced={() => { void loadProxyStatus(); }}
+  t={t}
 />
 
 </main>

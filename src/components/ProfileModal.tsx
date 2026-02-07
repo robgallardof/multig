@@ -2,7 +2,7 @@
 
 import React from "react";
 import { profileIcons } from "./icons";
-import { es as t } from "../i18n/es";
+import type { Translations } from "../i18n";
 import { EmojiIcon } from "./EmojiIcon";
 
 /**
@@ -36,6 +36,7 @@ export type ProfileModalProps = {
   initial: ProfileModalValues;
   onClose: () => void;
   onSubmit: (values: ProfileModalValues) => void;
+  t: Translations;
 };
 
 /**
@@ -46,6 +47,7 @@ export type ProfileModalProps = {
  * @since 2026-01-23
  */
 export function ProfileModal(props: ProfileModalProps) {
+  const t = props.t;
   const [name, setName] = React.useState(props.initial.name);
   const [icon, setIcon] = React.useState(props.initial.icon);
   const [url, setUrl] = React.useState(props.initial.url || "");
