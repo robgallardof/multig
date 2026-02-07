@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { X } from "lucide-react";
 import { profileIcons } from "./icons";
 import { es as t } from "../i18n/es";
+import { EmojiIcon } from "./EmojiIcon";
 
 /**
  * Modal mode.
@@ -65,7 +65,7 @@ export function ProfileModal(props: ProfileModalProps) {
         <div className="modalHead">
           <p className="modalTitle">{props.title}</p>
           <button className="btn secondary" onClick={props.onClose} title={t.actions.cancel}>
-            <X size={16} />
+            <EmojiIcon symbol="✖️" label="close" size={16} />
           </button>
         </div>
 

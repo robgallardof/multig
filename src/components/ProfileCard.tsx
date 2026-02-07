@@ -1,7 +1,7 @@
 "use client";
 
-import { Play, Pencil, Trash2, Clock, Shuffle } from "lucide-react";
 import { es as t } from "../i18n/es";
+import { EmojiIcon } from "./EmojiIcon";
 
 /**
  * Profile card view model.
@@ -53,7 +53,7 @@ export function ProfileCard(props: ProfileCardProps) {
             <p className="pName">{p.name}</p>
             <div className="pMeta">
               <span className="badge">
-                <Clock size={14} />
+                <EmojiIcon symbol="🕒" label="clock" size={14} />
                 {last ? last : t.status.neverOpened}
               </span>
               <span className="badge" style={{marginLeft:8}}>
@@ -67,13 +67,13 @@ export function ProfileCard(props: ProfileCardProps) {
 
         <div className="row">
           <button className="btn secondary" onClick={() => props.onEdit(p.id)} title={t.actions.edit}>
-            <Pencil size={16} />
+            <EmojiIcon symbol="✏️" label="edit" size={16} />
           </button>
           <button className="btn secondary" onClick={() => props.onRotate(p.id)} title={t.actions.rotateIp}>
-            <Shuffle size={16} />
+            <EmojiIcon symbol="🔀" label="rotate" size={16} />
           </button>
           <button className="btn danger" onClick={() => props.onDelete(p.id)} title={t.actions.delete}>
-            <Trash2 size={16} />
+            <EmojiIcon symbol="🗑️" label="delete" size={16} />
           </button>
         </div>
       </div>
@@ -82,7 +82,7 @@ export function ProfileCard(props: ProfileCardProps) {
 
       <button className="btn secondary" onClick={() => props.onOpen(p.id)} style={{ width: "100%" }}>
         <span className="row" style={{ justifyContent: "center" }}>
-          <Play size={16} />
+          <EmojiIcon symbol="▶️" label="open" size={16} />
           {t.actions.open}
         </span>
       </button>
