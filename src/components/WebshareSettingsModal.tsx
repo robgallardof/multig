@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
-import { X, Shield, KeyRound, User, Lock, Trash2 } from "lucide-react";
 import { es as t } from "../i18n/es";
+import { EmojiIcon } from "./EmojiIcon";
 
 /**
  * Webshare public status returned by API.
@@ -142,11 +142,11 @@ export function WebshareSettingsModal(props: WebshareSettingsModalProps) {
         <div className="modalHead">
           <p className="modalTitle">
             <span className="row">
-              <Shield size={16} /> {t.actions.webshare}
+              <EmojiIcon symbol="🛡️" label="webshare" size={16} /> {t.actions.webshare}
             </span>
           </p>
           <button className="btn secondary" onClick={props.onClose} title={t.actions.cancel}>
-            <X size={16} />
+            <EmojiIcon symbol="✖️" label="close" size={16} />
           </button>
         </div>
 
@@ -166,17 +166,17 @@ export function WebshareSettingsModal(props: WebshareSettingsModalProps) {
         </p>
 
         <label className="label">
-          <span className="row"><KeyRound size={14} /> {t.fields.webshareToken}</span>
+          <span className="row"><EmojiIcon symbol="🔑" label="token" size={14} /> {t.fields.webshareToken}</span>
         </label>
         <input className="input" value={token} onChange={(e) => setToken(e.target.value)} placeholder={t.fields.webshareTokenPlaceholder} />
 
         <label className="label">
-          <span className="row"><User size={14} /> {t.fields.webshareUsername}</span>
+          <span className="row"><EmojiIcon symbol="👤" label="username" size={14} /> {t.fields.webshareUsername}</span>
         </label>
         <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} placeholder={t.fields.webshareUsernamePlaceholder} />
 
         <label className="label">
-          <span className="row"><Lock size={14} /> {t.fields.websharePassword}</span>
+          <span className="row"><EmojiIcon symbol="🔒" label="password" size={14} /> {t.fields.websharePassword}</span>
         </label>
         <input className="input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t.fields.websharePasswordPlaceholder} />
 
@@ -205,7 +205,7 @@ export function WebshareSettingsModal(props: WebshareSettingsModalProps) {
 
         <div className="row" style={{ justifyContent: "space-between", marginTop: 14 }}>
           <button className="btn danger" onClick={clear} disabled={busy}>
-            <span className="row"><Trash2 size={16} /> {t.actions.delete}</span>
+            <span className="row"><EmojiIcon symbol="🗑️" label="delete" size={16} /> {t.actions.delete}</span>
           </button>
 
           <div className="row">

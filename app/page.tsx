@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { es as t } from "../src/i18n/es";
-import { Plus, RefreshCw, Wrench, Play, Settings } from "lucide-react";
 import { WebshareSettingsModal, type WebsharePublicStatus } from "../src/components/WebshareSettingsModal";
 import { ProfileCard, type ProfileVm } from "../src/components/ProfileCard";
 import { ProfileModal, type ProfileModalValues } from "../src/components/ProfileModal";
+import { EmojiIcon } from "../src/components/EmojiIcon";
 
 /**
  * API profile model.
@@ -251,23 +251,23 @@ export default function HomePage() {
           />
 
           <button className="btn secondary" onClick={() => loadAll()} disabled={busy} title={t.actions.refresh}>
-            <span className="row"><RefreshCw size={16} />{t.actions.refresh}</span>
+            <span className="row"><EmojiIcon symbol="🔄" label="refresh" size={16} />{t.actions.refresh}</span>
           </button>
 
           <button className="btn secondary" onClick={() => setWebshareOpen(true)} disabled={busy} title={t.actions.webshare}>
-            <span className="row"><Settings size={16} />{t.actions.webshare}</span>
+            <span className="row"><EmojiIcon symbol="⚙️" label="settings" size={16} />{t.actions.webshare}</span>
           </button>
 
           <button className="btn secondary" onClick={() => setup()} disabled={busy} title={t.actions.setup}>
-            <span className="row"><Wrench size={16} />{t.actions.setup}</span>
+            <span className="row"><EmojiIcon symbol="🛠️" label="setup" size={16} />{t.actions.setup}</span>
           </button>
 
           <button className="btn secondary" onClick={() => openAll()} disabled={busy || profiles.length === 0} title={t.actions.openAll}>
-            <span className="row"><Play size={16} />{t.actions.openAll}</span>
+            <span className="row"><EmojiIcon symbol="▶️" label="open all" size={16} />{t.actions.openAll}</span>
           </button>
 
           <button className="btn" onClick={() => { setEditId(null); setModalOpen(true); }} disabled={busy}>
-            <span className="row"><Plus size={16} />{t.actions.create}</span>
+            <span className="row"><EmojiIcon symbol="➕" label="create" size={16} />{t.actions.create}</span>
           </button>
         </div>
       </div>
