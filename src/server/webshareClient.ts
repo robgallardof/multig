@@ -84,6 +84,9 @@ export class WebshareClient {
     for (const [k, v] of Object.entries(query)) {
       if (v !== undefined && String(v).trim().length > 0) qs.set(k, String(v));
     }
+    if (!qs.has("mode")) {
+      qs.set("mode", "direct");
+    }
 
     const key = qs.toString();
     const cached = WebshareCache.get(key);
