@@ -19,6 +19,32 @@ Development by robertogallardo
 - Node.js 20+
 - Python 3.10+ (instalado)
 
+## Acceso por token (1 por dispositivo)
+Para limitar el acceso a la app, existe una lista de tokens en `data/access_tokens.json`.
+Cada token representa un dispositivo (1 token por device). El flujo es:
+1) Abre la app y pega tu token en la pantalla de acceso.
+2) El token se guarda en una cookie HTTP-only.
+3) Todas las rutas (UI + API) requieren un token válido.
+
+Ejemplo de entrada en `data/access_tokens.json`:
+```json
+[
+  { "token": "multig-...", "device": "laptop-1", "enabled": true }
+]
+```
+
+Si necesitas revocar un dispositivo, pon `"enabled": false` o elimina la entrada.
+
+## Docker (sin instalar Node/Python local)
+Puedes usar Docker para levantar todo sin instalar Node ni Python localmente:
+```bash
+docker compose up --build
+```
+
+Datos persistentes:
+- `./data` (DB y settings)
+- `./profiles` (sesiones de Camoufox)
+
 ## Ejecutar
 1) Instala dependencias Node:
 ```bash
