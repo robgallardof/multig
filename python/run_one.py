@@ -70,7 +70,7 @@ def main() -> None:
         proxy=proxy,
         **config,
     ) as ctx:
-        page = ctx.new_page()
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
         page.goto(a.url)
         page.wait_for_timeout(24 * 60 * 60 * 1000)
 
