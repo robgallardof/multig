@@ -328,7 +328,8 @@ export default function HomePage() {
       return;
     }
     const p = profiles.find(x => x.id === id);
-    const url = (p?.url && p.url.trim()) ? p.url.trim() : defaultUrl.trim();
+    const normalizedDefaultUrl = defaultUrl.trim();
+    const url = normalizedDefaultUrl || (p?.url?.trim() ?? "");
 
     if (!system?.venvExists) {
       showToast(t.messages.setupRequired);

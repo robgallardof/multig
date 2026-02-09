@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import urllib.request
 import zipfile
 import hashlib
@@ -92,16 +93,6 @@ def _ensure_addon(profile_dir: Path, addon_url: str) -> None:
         copyfile(addon_path, target)
 
 
-def _read_env_flag(value: str | None) -> bool:
-    if not value:
-        return False
-    return value.strip().lower() in {"1", "true", "yes"}
-
-
-def _wplace_enabled() -> bool:
-    return _read_env_flag(os.getenv("WPLACE_ENABLED"))
-
-
 def _wplace_script_url() -> str:
     return os.getenv("WPLACE_TAMPERMONKEY_SCRIPT_URL", "").strip() or WPLACE_SCRIPT_DEFAULT
 
@@ -111,8 +102,6 @@ def _wplace_marker(profile_dir: Path) -> Path:
 
 
 def _install_wplace_script(ctx: Camoufox, profile_dir: Path) -> None:
-    if not _wplace_enabled():
-        return
     marker = _wplace_marker(profile_dir)
     if marker.exists():
         return
@@ -169,12 +158,17 @@ def main() -> None:
         user_data_dir=str(profile_dir),
         headless=headless,
         proxy=proxy,
+        no_viewport=True,
         **config,
     ) as ctx:
         _install_wplace_script(ctx, profile_dir)
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         page.goto(a.url)
-        page.wait_for_timeout(24 * 60 * 60 * 1000)
+        try:
+            ctx.wait_for_event("close")
+        except Exception:
+            while True:
+                time.sleep(3600)
 
 
 if __name__ == "__main__":
