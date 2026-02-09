@@ -65,5 +65,16 @@ export function buildCamoufoxOptions(profile: Profile, proxy?: ProxyMeta) {
     locale: locale.locale,
     humanize: true,
     devtools: AppConfig.devtoolsEnabled,
+    firefox_user_prefs: {
+      "browser.privatebrowsing.autostart": false,
+      "extensions.autoDisableScopes": 0,
+      "extensions.enabledScopes": 15,
+      "extensions.sideloading.enabled": true,
+      "privacy.clearOnShutdown.cache": false,
+      "privacy.clearOnShutdown.cookies": false,
+      "privacy.clearOnShutdown.offlineApps": false,
+      "privacy.clearOnShutdown.sessions": false,
+      "privacy.sanitize.sanitizeOnShutdown": false,
+    },
   };
 }
