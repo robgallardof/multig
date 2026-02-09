@@ -45,6 +45,15 @@ export class AppPaths {
   }
 
   /**
+   * Returns absolute path to cookie import/export runner.
+   *
+   * @since 2026-01-23
+   */
+  public static cookiesIoPy(): string {
+    return path.resolve(process.cwd(), "python", "cookies_io.py");
+  }
+
+  /**
    * Returns python venv path.
    *
    * @since 2026-01-23

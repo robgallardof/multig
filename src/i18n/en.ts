@@ -23,6 +23,8 @@ export const en = {
     rotateIp: "Rotate IP",
     webshare: "Webshare",
     sync: "Sync",
+    importCookies: "Import cookies",
+    exportCookies: "Export cookies",
   },
   fields: {
     name: "Name",
@@ -75,6 +77,9 @@ export const en = {
     webshareSaveError: "❌ Error while saving",
     webshareDeleteError: "❌ Error while deleting",
     webshareSyncError: "❌ Error while syncing proxies",
+    cookiesImported: "✅ Cookies imported",
+    cookiesExported: "✅ Cookies exported",
+    cookiesInvalid: "The file must contain a JSON array of cookies.",
   },
   ui: {
     statusTitle: "Status",
