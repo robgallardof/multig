@@ -51,21 +51,37 @@ def _normalize_cookie(raw: dict[str, Any]) -> dict[str, Any]:
         "path": raw.get("path") or "/",
     }
 
-    if raw.get("domain"):
-        cookie["domain"] = raw.get("domain")
+    domain = raw.get("domain")
+    if domain:
+        domain = str(domain)
+        host_only = raw.get("hostOnly")
+        if isinstance(host_only, str):
+            host_only = host_only.strip().lower() in {"1", "true", "yes"}
+        if host_only and domain.startswith("."):
+            domain = domain.lstrip(".")
+        cookie["domain"] = domain
 
-    if raw.get("secure") is not None:
-        cookie["secure"] = bool(raw.get("secure"))
+    secure = raw.get("secure")
+    if secure is not None:
+        if isinstance(secure, str):
+            secure = secure.strip().lower() in {"1", "true", "yes"}
+        cookie["secure"] = bool(secure)
 
-    if raw.get("httpOnly") is not None:
-        cookie["httpOnly"] = bool(raw.get("httpOnly"))
+    http_only = raw.get("httpOnly")
+    if http_only is not None:
+        if isinstance(http_only, str):
+            http_only = http_only.strip().lower() in {"1", "true", "yes"}
+        cookie["httpOnly"] = bool(http_only)
 
     same_site = _normalize_same_site(raw.get("sameSite"))
     if same_site:
         cookie["sameSite"] = same_site
 
+    session_flag = raw.get("session")
+    if isinstance(session_flag, str):
+        session_flag = session_flag.strip().lower() in {"1", "true", "yes"}
     expires_raw = raw.get("expirationDate", raw.get("expires"))
-    if expires_raw:
+    if expires_raw and not session_flag:
         try:
             expires = float(expires_raw)
         except (TypeError, ValueError):
