@@ -78,6 +78,17 @@ export class Db {
       );
 
       CREATE INDEX IF NOT EXISTS idx_proxies_source ON proxies(source);
+
+      CREATE TABLE IF NOT EXISTS logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        level TEXT NOT NULL,
+        message TEXT NOT NULL,
+        detail TEXT NULL,
+        context TEXT NULL,
+        createdAt TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_logs_createdAt ON logs(createdAt);
     `);
 
     const tableInfo = (name: string) => db.prepare(`PRAGMA table_info(${name})`).all() as { name: string }[];

@@ -25,6 +25,8 @@ export const es = {
     sync: "Sincronizar",
     importCookies: "Importar cookies",
     exportCookies: "Exportar cookies",
+    copy: "Copiar",
+    clearFilters: "Limpiar filtros",
   },
   fields: {
     name: "Nombre",
@@ -80,6 +82,8 @@ export const es = {
     cookiesImported: "✅ Cookies importadas",
     cookiesExported: "✅ Cookies exportadas",
     cookiesInvalid: "El archivo debe contener un JSON con un array de cookies.",
+    logCopied: "✅ Log copiado",
+    logCopyFailed: "❌ No se pudo copiar el log",
   },
   ui: {
     statusTitle: "Status",
@@ -91,6 +95,19 @@ export const es = {
     createProfileTitle: "Crear perfil",
     editProfileTitle: "Editar perfil",
     languageToggle: "Idioma",
+    tabProfiles: "Perfiles",
+    tabLogs: "Logs",
+    logsTitle: "Logs en tiempo real",
+    logsSubtitle: "Eventos, errores y operaciones del sistema almacenados en la base de datos.",
+    logsSearchPlaceholder: "Buscar por mensaje, detalle o contexto...",
+    logsAutoRefresh: "Auto refresh",
+    logsLevelAll: "Todos",
+    logsLevelInfo: "Info",
+    logsLevelWarn: "Warn",
+    logsLevelError: "Error",
+    logsUpdated: "Actualizado: {time}",
+    logsEmpty: "No hay logs todavía.",
+    logsCount: "{count} logs",
     webshareSecurityNote:
       "Tu token/credenciales se guardan solo en el servidor y encriptados en disco. La UI no vuelve a recibirlos. " +
       "La asignación de IP es automática y aleatoria al abrir cada perfil (sin repetirse entre instancias activas).",
