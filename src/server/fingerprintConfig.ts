@@ -1,4 +1,5 @@
 import type { Profile } from "./profileTypes";
+import { AppConfig } from "./appConfig";
 
 type LocaleConfig = {
   locale: string;
@@ -63,5 +64,6 @@ export function buildCamoufoxOptions(profile: Profile, proxy?: ProxyMeta) {
     fonts: os.fonts,
     locale: locale.locale,
     humanize: true,
+    devtools: AppConfig.devtoolsEnabled,
   };
 }

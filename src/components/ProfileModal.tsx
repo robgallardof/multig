@@ -21,6 +21,10 @@ export type ProfileModalValues = {
   icon: string;
   url?: string;
   osType: "windows" | "mac" | "linux";
+  wplace?: {
+    enabled: boolean;
+    tokens: string[];
+  };
 };
 
 /**
@@ -33,6 +37,7 @@ export type ProfileModalProps = {
   isOpen: boolean;
   title: string;
   initial: ProfileModalValues;
+  allowWplace: boolean;
   onClose: () => void;
   onSubmit: (values: ProfileModalValues) => void;
   t: Translations;
@@ -51,17 +56,27 @@ export function ProfileModal(props: ProfileModalProps) {
   const [icon, setIcon] = React.useState(props.initial.icon);
   const [url, setUrl] = React.useState(props.initial.url || "");
   const [osType, setOsType] = React.useState(props.initial.osType);
+  const [wplaceEnabled, setWplaceEnabled] = React.useState(false);
+  const [wplaceTokens, setWplaceTokens] = React.useState("");
 
   React.useEffect(() => {
     setName(props.initial.name);
     setIcon(props.initial.icon);
     setUrl(props.initial.url || "");
     setOsType(props.initial.osType);
+    setWplaceEnabled(false);
+    setWplaceTokens("");
   }, [props.initial.name, props.initial.icon, props.initial.url, props.initial.osType, props.isOpen]);
 
   if (!props.isOpen) return null;
 
-  const canSave = name.trim().length > 0;
+  const tokenList = wplaceTokens
+    .split(/\r?\n/g)
+    .map((token) => token.trim())
+    .filter(Boolean);
+  const canSave = props.mode === "create" && wplaceEnabled
+    ? tokenList.length > 0
+    : name.trim().length > 0;
 
   return (
     <div className="modalBg" role="dialog" aria-modal="true">
@@ -75,18 +90,58 @@ export function ProfileModal(props: ProfileModalProps) {
 
         <div className="hr" />
 
-        <label className="label">{t.fields.name}</label>
-        <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t.fields.namePlaceholder} />
+        {props.mode === "create" && props.allowWplace && (
+          <div className="toggleRow" style={{ marginBottom: 12 }}>
+            <span className="toggleLabelText">{t.fields.wplaceMode}</span>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={wplaceEnabled}
+                onChange={(e) => setWplaceEnabled(e.target.checked)}
+                aria-label={t.fields.wplaceMode}
+              />
+              <span className="toggleTrack">
+                <span className="toggleThumb" />
+              </span>
+            </label>
+          </div>
+        )}
 
-        <label className="label">{t.fields.icon}</label>
-        <div className="card" style={{ marginTop: 4 }}>
-          <p className="small" style={{ margin: 0 }}>
-            {t.ui.avatarNote}
-          </p>
-        </div>
+        {props.mode === "create" && props.allowWplace && wplaceEnabled ? (
+          <>
+            <label className="label">{t.fields.wplaceTokens}</label>
+            <textarea
+              className="input"
+              rows={6}
+              value={wplaceTokens}
+              onChange={(e) => setWplaceTokens(e.target.value)}
+              placeholder={t.fields.wplaceTokensPlaceholder}
+            />
+            <div className="card" style={{ marginTop: 8 }}>
+              <p className="small" style={{ margin: 0 }}>
+                {t.ui.wplaceTokenNote}
+              </p>
+              <p className="small" style={{ margin: "6px 0 0" }}>
+                {t.ui.wplaceTokensCount.replace("{count}", String(tokenList.length))}
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <label className="label">{t.fields.name}</label>
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t.fields.namePlaceholder} />
 
-        <label className="label">{t.fields.url}</label>
-        <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
+            <label className="label">{t.fields.icon}</label>
+            <div className="card" style={{ marginTop: 4 }}>
+              <p className="small" style={{ margin: 0 }}>
+                {t.ui.avatarNote}
+              </p>
+            </div>
+
+            <label className="label">{t.fields.url}</label>
+            <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
+          </>
+        )}
 
         <label className="label">{t.fields.osType}</label>
         <select className="input" value={osType} onChange={(e) => setOsType(e.target.value as ProfileModalValues["osType"])}>
@@ -106,7 +161,15 @@ export function ProfileModal(props: ProfileModalProps) {
           </button>
           <button
             className="btn"
-            onClick={() => props.onSubmit({ name: name.trim(), icon, url: url.trim() || undefined, osType })}
+            onClick={() => props.onSubmit({
+              name: name.trim(),
+              icon,
+              url: url.trim() || undefined,
+              osType,
+              wplace: props.mode === "create" && wplaceEnabled
+                ? { enabled: true, tokens: tokenList }
+                : undefined,
+            })}
             disabled={!canSave}
             style={{ opacity: canSave ? 1 : 0.6 }}
           >

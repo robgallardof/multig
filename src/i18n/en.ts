@@ -53,6 +53,9 @@ export const en = {
     websharePasswordPlaceholder: "Proxy password",
     addonUrl: "Addon URL",
     addonUrlPlaceholder: "https://addons.mozilla.org/.../latest.xpi",
+    wplaceMode: "Wplace",
+    wplaceTokens: "Wplace tokens (one per line)",
+    wplaceTokensPlaceholder: "Paste each token value on its own line",
   },
   status: {
     ready: "Ready",
@@ -127,6 +130,8 @@ export const en = {
       "IP assignment is automatic and random when opening each profile (no repeats among active instances).",
     autoProxyNote:
       "The proxy is assigned automatically when you open the profile. Each instance gets a random IP and it does not repeat among active profiles.",
+    wplaceTokenNote: "Paste only the cookie value (name: j). Profiles are created automatically.",
+    wplaceTokensCount: "{count} tokens detected",
   },
   access: {
     title: "Access required",

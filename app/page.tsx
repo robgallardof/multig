@@ -28,8 +28,8 @@ type ApiProfile = {
   lastOpenedAt?: string;
 };
 
-type ApiProfilesResponse = { profiles: ApiProfile[]; createdId?: string };
-type ApiSystemStatus = { venvExists: boolean };
+type ApiProfilesResponse = { profiles: ApiProfile[]; createdId?: string; createdIds?: string[] };
+type ApiSystemStatus = { venvExists: boolean; wplaceEnabled?: boolean };
 type ApiProxyStatus = { total: number; available: number };
 type ApiLogEntry = {
   id: number;
@@ -238,6 +238,22 @@ export default function HomePage() {
   async function createProfile(values: ProfileModalValues) {
     setBusy(true);
     try {
+      if (values.wplace?.enabled) {
+        if (!system?.venvExists) {
+          showToast(t.messages.setupRequired);
+          return;
+        }
+        const r = await fetch("/api/profiles", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "wplace", tokens: values.wplace.tokens }),
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const j = await safeJson<ApiProfilesResponse>(r);
+        setProfiles(j.profiles || []);
+        showToast(t.messages.profileCreated);
+        return;
+      }
       const r = await fetch("/api/profiles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -759,6 +775,7 @@ export default function HomePage() {
           url: editing?.url || "",
           osType: editing?.osType || "windows",
         }}
+        allowWplace={Boolean(system?.wplaceEnabled)}
         onClose={() => setModalOpen(false)}
         onSubmit={(values) => {
           setModalOpen(false);

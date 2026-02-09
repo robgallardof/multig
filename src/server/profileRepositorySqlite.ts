@@ -62,6 +62,40 @@ export class ProfileRepositorySqlite {
   }
 
   /**
+   * Creates multiple profiles in a single transaction.
+   *
+   * @since 2026-01-23
+   */
+  public static createMany(inputs: Array<Omit<Profile, "id"> & { id?: string }>): Profile[] {
+    if (inputs.length === 0) return ProfileRepositorySqlite.list();
+    const db = Db.get();
+    const stmt = db.prepare(`
+      INSERT INTO profiles (id, name, icon, url, osType, proxyServer, proxyUsername, proxyPassword, createdAt, lastOpenedAt)
+      VALUES (@id, @name, @icon, @url, @osType, @proxyServer, @proxyUsername, @proxyPassword, @createdAt, @lastOpenedAt)
+    `);
+    const insert = db.transaction((rows: Array<Omit<Profile, "id"> & { id?: string }>) => {
+      for (const row of rows) {
+        const id = row.id || crypto.randomUUID();
+        const osType = row.osType ?? "windows";
+        stmt.run({
+          id,
+          name: row.name,
+          icon: row.icon,
+          url: row.url ?? null,
+          osType,
+          proxyServer: null,
+          proxyUsername: null,
+          proxyPassword: null,
+          createdAt: row.createdAt,
+          lastOpenedAt: (row as any).lastOpenedAt ?? null,
+        });
+      }
+    });
+    insert(inputs);
+    return ProfileRepositorySqlite.list();
+  }
+
+  /**
    * Updates a profile.
    *
    * @since 2026-01-23
