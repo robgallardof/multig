@@ -1,29 +1,11 @@
 import { NextResponse } from "next/server";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { ProfileRepositorySqlite } from "../../../../../src/server/profileRepositorySqlite";
 import { AppPaths } from "../../../../../src/server/paths";
-import { PythonSetup } from "../../../../../src/server/pythonSetup";
 import { LogRepository } from "../../../../../src/server/logRepository";
+import { exportProfileCookies, importProfileCookies } from "../../../../../src/server/cookiesIo";
 
 type CookiesPayload = { cookies: unknown[] };
-
-function runCookieTool(action: "import" | "export", profileDir: string, input?: string): string {
-  const py = PythonSetup.python();
-  const args = [AppPaths.cookiesIoPy(), "--profile", profileDir, "--action", action];
-  const result = spawnSync(py, args, {
-    input,
-    encoding: "utf8",
-    maxBuffer: 20 * 1024 * 1024,
-  });
-
-  if (result.status !== 0) {
-    const err = (result.stderr || result.stdout || "").trim();
-    throw new Error(err || "Cookie import/export failed.");
-  }
-
-  return result.stdout || "";
-}
 
 /**
  * GET /api/profiles/:id/cookies
@@ -40,8 +22,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const profileDir = path.join(AppPaths.profilesDir(), id);
 
   try {
-    const out = runCookieTool("export", profileDir);
-    const cookies = out ? (JSON.parse(out) as unknown[]) : [];
+    const cookies = exportProfileCookies(profileDir);
     LogRepository.info("Cookies exported", { profileId: id, count: cookies.length });
     return NextResponse.json({ cookies });
   } catch (e: any) {
@@ -78,7 +59,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const profileDir = path.join(AppPaths.profilesDir(), id);
 
   try {
-    runCookieTool("import", profileDir, JSON.stringify(payload.cookies));
+    importProfileCookies(profileDir, payload.cookies);
     LogRepository.info("Cookies imported", { profileId: id, count: payload.cookies.length });
     return NextResponse.json({ ok: true, imported: payload.cookies.length });
   } catch (e: any) {

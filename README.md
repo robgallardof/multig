@@ -6,6 +6,7 @@ Gestor moderno de **perfiles persistentes** (sesiones) para Camoufox:
 - UI moderna y responsive
 - i18n español
 - Backend en Next API que lanza Camoufox vía Python
+- Selección múltiple de perfiles para acciones en batch (eliminar/exportar)
 
 ## Sesiones (mantener login)
 El objetivo principal es **conservar sesiones**: si te logueas en una web dentro de un perfil, el login queda guardado

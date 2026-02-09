@@ -77,6 +77,31 @@ a{color:inherit}
 }
 .cardTop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .pTitle{display:flex;gap:10px;align-items:center}
+.selectBox{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  cursor:pointer;
+}
+.selectBox input{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+.selectMark{
+  width:18px;
+  height:18px;
+  border-radius:6px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.04);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
+}
+.selectBox input:checked + .selectMark{
+  background:rgba(79,140,255,.3);
+  border-color:rgba(79,140,255,.8);
+  box-shadow:inset 0 0 0 2px rgba(79,140,255,.9);
+}
 .pAvatar{
   width:46px;height:46px;border-radius:16px;
   border:1px solid rgba(255,255,255,.12);
