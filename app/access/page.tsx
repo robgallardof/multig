@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { en, es } from "../../src/i18n";
+import type { Translations } from "../../src/i18n";
 
 export default function AccessPage() {
   const searchParams = useSearchParams();
@@ -9,6 +11,51 @@ export default function AccessPage() {
   const [token, setToken] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [language, setLanguage] = useState<"es" | "en">("es");
+
+  const t: Translations = useMemo(() => (language === "es" ? es : en), [language]);
+
+  async function safeJson<T>(r: Response): Promise<T> {
+    const text = await r.text();
+    if (!text) throw new Error("Empty response body");
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new Error(text);
+    }
+  }
+
+  async function loadLanguage() {
+    try {
+      const r = await fetch("/api/settings/app", { cache: "no-store" });
+      if (!r.ok) throw new Error(await r.text());
+      const j = await safeJson<{ language: "es" | "en" }>(r);
+      setLanguage(j.language === "en" ? "en" : "es");
+    } catch {
+      setLanguage("es");
+    }
+  }
+
+  async function saveLanguage(nextLanguage: "es" | "en") {
+    setLanguage(nextLanguage);
+    try {
+      await fetch("/api/settings/app", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: nextLanguage }),
+      });
+    } catch {
+      // Ignore language save errors on access screen.
+    }
+  }
+
+  useEffect(() => {
+    void loadLanguage();
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
 
   async function submit() {
     setStatus("loading");
@@ -22,12 +69,12 @@ export default function AccessPage() {
       });
       if (!r.ok) {
         const text = await r.text();
-        throw new Error(text || "Token inválido");
+        throw new Error(text || t.access.invalidToken);
       }
       window.location.href = nextPath;
     } catch (e: any) {
       setStatus("error");
-      setMessage(String(e?.message || "Token inválido"));
+      setMessage(String(e?.message || t.access.invalidToken));
     }
   }
 
@@ -37,15 +84,30 @@ export default function AccessPage() {
         <div className="accessHeader">
           <div className="logo">🦊</div>
           <div>
-            <h1 className="h1">Acceso requerido</h1>
-            <p className="sub">Ingresa tu token para habilitar la app en este dispositivo.</p>
+            <h1 className="h1">{t.access.title}</h1>
+            <p className="sub">{t.access.subtitle}</p>
+          </div>
+          <div className="langToggle" aria-label={t.ui.languageToggle}>
+            <span className="toggleLabelText">ES</span>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={language === "en"}
+                onChange={(e) => saveLanguage(e.target.checked ? "en" : "es")}
+                aria-label={t.ui.languageToggle}
+              />
+              <span className="toggleTrack">
+                <span className="toggleThumb" />
+              </span>
+            </label>
+            <span className="toggleLabelText">EN</span>
           </div>
         </div>
-        <label className="label" htmlFor="token">Token de acceso</label>
+        <label className="label" htmlFor="token">{t.access.tokenLabel}</label>
         <input
           id="token"
           className="input"
-          placeholder="multig-..."
+          placeholder={t.access.tokenPlaceholder}
           value={token}
           onChange={(e) => setToken(e.target.value)}
           onKeyDown={(e) => {
@@ -56,9 +118,9 @@ export default function AccessPage() {
           <div className="accessError">{message}</div>
         )}
         <button className="btn" onClick={() => void submit()} disabled={!token.trim() || status === "loading"}>
-          {status === "loading" ? "Validando..." : "Entrar"}
+          {status === "loading" ? t.access.validating : t.access.submit}
         </button>
-        <p className="small">Solo hay 1 token válido por dispositivo.</p>
+        <p className="small">{t.access.helper}</p>
       </div>
     </main>
   );

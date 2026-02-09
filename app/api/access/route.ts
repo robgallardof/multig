@@ -5,7 +5,8 @@ import { findAccessToken } from "../../../src/server/accessTokens";
 const COOKIE_NAME = "multig_access_token";
 
 export async function GET() {
-  const token = cookies().get(COOKIE_NAME)?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE_NAME)?.value;
   const match = findAccessToken(token);
   return NextResponse.json({ authorized: Boolean(match), device: match?.device ?? null });
 }
@@ -19,7 +20,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
-  cookies().set(COOKIE_NAME, match.token, {
+  const cookieStore = await cookies();
+  cookieStore.set(COOKIE_NAME, match.token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

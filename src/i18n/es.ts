@@ -128,6 +128,16 @@ export const es = {
     autoProxyNote:
       "El proxy se asigna automáticamente cuando abres el perfil. Cada instancia recibe una IP aleatoria y no se repite entre perfiles activos.",
   },
+  access: {
+    title: "Acceso requerido",
+    subtitle: "Ingresa tu token para habilitar la app en este dispositivo.",
+    tokenLabel: "Token de acceso",
+    tokenPlaceholder: "multig-...",
+    submit: "Entrar",
+    validating: "Validando...",
+    invalidToken: "Token inválido",
+    helper: "Solo hay 1 token válido por dispositivo.",
+  },
   footer: {
     copyright: "© 2026 robertogallardo.dev",
     by: "Development by robertogallardo",
