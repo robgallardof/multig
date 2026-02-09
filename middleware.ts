@@ -1,12 +1,34 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isAccessTokenValid } from "./src/server/accessTokens";
 
 const ACCESS_PATH = "/access";
+const ACCESS_API_PATH = "/api/access";
 
 async function hasValidToken(request: NextRequest): Promise<boolean> {
-  const headerToken = request.headers.get("x-access-token");
+  const headerToken = request.headers.get("x-access-token")?.trim();
   const cookieToken = request.cookies.get("multig_access_token")?.value;
-  return isAccessTokenValid(headerToken || cookieToken);
+  const token = headerToken || cookieToken;
+  if (!token) {
+    return false;
+  }
+
+  const url = new URL(ACCESS_API_PATH, request.nextUrl.origin);
+  const response = await fetch(url, {
+    method: headerToken ? "POST" : "GET",
+    cache: "no-store",
+    headers: {
+      ...(headerToken
+        ? { "content-type": "application/json" }
+        : { cookie: request.headers.get("cookie") ?? "" }),
+    },
+    body: headerToken ? JSON.stringify({ token: headerToken }) : undefined,
+  });
+
+  if (!response.ok) {
+    return false;
+  }
+
+  const data = (await response.json().catch(() => null)) as { authorized?: boolean } | null;
+  return Boolean(data?.authorized);
 }
 
 export async function middleware(request: NextRequest) {
