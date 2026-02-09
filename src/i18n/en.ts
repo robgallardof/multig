@@ -55,7 +55,7 @@ export const en = {
     addonUrlPlaceholder: "https://addons.mozilla.org/.../latest.xpi",
     wplaceMode: "Wplace",
     wplaceTokens: "Wplace tokens (one per line)",
-    wplaceTokensPlaceholder: "Paste each token value on its own line",
+    wplaceTokensPlaceholder: "Paste each token value on its own line or separated by commas",
   },
   status: {
     ready: "Ready",
