@@ -31,4 +31,5 @@ export type AppSettings = {
   language?: "es" | "en";
   addonUrl?: string;
   defaultUrl?: string;
+  wplaceBotStorage?: string;
 };

@@ -14,6 +14,8 @@ export type ProfileVm = {
   icon: string;
   createdAt: string;
   lastOpenedAt?: string;
+  url?: string;
+  osType?: "windows" | "mac" | "linux";
   useProxy?: boolean;
   hasProxy?: boolean;
   proxyServer?: string;
@@ -29,12 +31,14 @@ export type ProfileCardProps = {
   onRotate: (id: string) => void;
   profile: ProfileVm;
   onOpen: (id: string) => void;
+  onStop: (id: string) => void;
   isActive: boolean;
   disabled?: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onImportCookies: (id: string) => void;
   onExportCookies: (id: string) => void;
+  view: "grid" | "list" | "details";
   selected?: boolean;
   onSelect?: (id: string, selected: boolean) => void;
   t: Translations;
@@ -52,6 +56,8 @@ export function ProfileCard(props: ProfileCardProps) {
   const t = props.t;
 
   const last = p.lastOpenedAt ? new Date(p.lastOpenedAt).toLocaleString() : null;
+  const created = p.createdAt ? new Date(p.createdAt).toLocaleString() : "—";
+  const osLabel = p.osType === "mac" ? t.fields.osMac : p.osType === "linux" ? t.fields.osLinux : t.fields.osWindows;
   const initials = p.name
     .split(" ")
     .map((part) => part.trim())
@@ -63,7 +69,7 @@ export function ProfileCard(props: ProfileCardProps) {
     .reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360;
 
   return (
-    <div className="card">
+    <div className={`card ${props.view !== "grid" ? "cardList" : ""} ${props.view === "details" ? "cardDetails" : ""} ${props.isActive ? "cardActive" : ""}`}>
       <div className="cardTop">
         <div className="pTitle">
           <div className="pAvatar" style={{ background: `hsl(${hue} 70% 35% / 0.9)` }} aria-hidden="true">
@@ -83,6 +89,11 @@ export function ProfileCard(props: ProfileCardProps) {
                     ? `🛡️ ${p.proxyLabel || p.proxyServer || t.status.proxyAssigned}`
                     : `🌐 ${t.status.proxyPending}`}
               </span>
+              {props.isActive && (
+                <span className="badge activeBadge">
+                  🟢 {t.status.active}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -118,6 +129,27 @@ export function ProfileCard(props: ProfileCardProps) {
 
       <div className="spacer" />
 
+      {props.view === "details" && (
+        <div className="cardDetailsGrid">
+          <div className="detailItem">
+            <span className="detailLabel">{t.ui.profileDetailCreated}</span>
+            <span className="detailValue">{created}</span>
+          </div>
+          <div className="detailItem">
+            <span className="detailLabel">{t.status.lastOpened}</span>
+            <span className="detailValue">{last ? last : t.status.neverOpened}</span>
+          </div>
+          <div className="detailItem">
+            <span className="detailLabel">{t.fields.url}</span>
+            <span className="detailValue">{p.url ? p.url : "—"}</span>
+          </div>
+          <div className="detailItem">
+            <span className="detailLabel">{t.fields.osType}</span>
+            <span className="detailValue">{osLabel}</span>
+          </div>
+        </div>
+      )}
+
       <div className="row cardCookieActions">
         <button className="btn secondary" onClick={() => props.onImportCookies(p.id)} title={t.actions.importCookies}>
           <span className="row"><EmojiIcon symbol="📥" label="import cookies" size={16} />{t.actions.importCookies}</span>
@@ -136,6 +168,11 @@ export function ProfileCard(props: ProfileCardProps) {
           <button className="btn" onClick={() => props.onOpen(p.id)} disabled={props.disabled}>
             {t.actions.open}
           </button>
+          {props.isActive && (
+            <button className="btn danger" onClick={() => props.onStop(p.id)} disabled={props.disabled}>
+              {t.actions.stop}
+            </button>
+          )}
           <span className="toggleState">{props.isActive ? t.status.active : t.status.inactive}</span>
         </div>
       </div>

@@ -27,7 +27,8 @@ export class CamoufoxLauncher {
     proxyUsername?: string,
     proxyPassword?: string,
     config?: Record<string, unknown>,
-    addonUrl?: string
+    addonUrl?: string,
+    extraEnv?: Record<string, string>
   ): number {
     const py = PythonSetup.python();
 
@@ -46,6 +47,10 @@ export class CamoufoxLauncher {
       stdio: "ignore",
       detached: true,
       windowsHide: false,
+      env: {
+        ...process.env,
+        ...(extraEnv || {}),
+      },
     });
 
     child.on("error", (err) => {

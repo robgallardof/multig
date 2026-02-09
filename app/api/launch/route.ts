@@ -6,6 +6,7 @@ import { SettingsRepository } from "../../../src/server/settingsRepository";
 import { WebshareSyncService } from "../../../src/server/webshareSyncService";
 import { buildCamoufoxOptions } from "../../../src/server/fingerprintConfig";
 import { LogRepository } from "../../../src/server/logRepository";
+import { AppConfig } from "../../../src/server/appConfig";
 
 /**
  * POST /api/launch
@@ -78,6 +79,11 @@ export async function POST(req: Request) {
     const proxyUsername = settings.webshare?.username;
     const proxyPassword = settings.webshare?.password;
     const camoufoxOptions = buildCamoufoxOptions(profile, assigned ?? undefined);
+    const extraEnv: Record<string, string> = {};
+    if (AppConfig.wplaceEnabled && settings.wplaceBotStorage) {
+      extraEnv.WPLACE_WBOT_STORAGE = settings.wplaceBotStorage;
+      extraEnv.WPLACE_ENABLED = "1";
+    }
 
     const pid = CamoufoxLauncher.launch(
       id,
@@ -86,7 +92,8 @@ export async function POST(req: Request) {
       proxyUsername,
       proxyPassword,
       camoufoxOptions,
-      settings.addonUrl
+      settings.addonUrl,
+      extraEnv
     );
     if (pid <= 0) {
       LogRepository.error("Camoufox launch failed", "PID not returned", { profileId: id, url });
