@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { en, es } from "../src/i18n";
 import type { Translations } from "../src/i18n";
 import { WebshareSettingsModal, type WebsharePublicStatus } from "../src/components/WebshareSettingsModal";
+import { AppSettingsModal } from "../src/components/AppSettingsModal";
 import { ProfileCard, type ProfileVm } from "../src/components/ProfileCard";
 import { ProfileModal, type ProfileModalValues } from "../src/components/ProfileModal";
 import { EmojiIcon } from "../src/components/EmojiIcon";
@@ -53,18 +54,24 @@ export default function HomePage() {
   const [system, setSystem] = useState<ApiSystemStatus | null>(null);
   const [webshare, setWebshare] = useState<WebsharePublicStatus | null>(null);
   const [webshareOpen, setWebshareOpen] = useState(false);
+  const [appSettingsOpen, setAppSettingsOpen] = useState(false);
+  const [addonUrl, setAddonUrl] = useState("");
   const [proxyStatus, setProxyStatus] = useState<ApiProxyStatus | null>(null);
   const [toast, setToast] = useState<string>("");
   const [activeProfiles, setActiveProfiles] = useState<Record<string, boolean>>({});
   const [language, setLanguage] = useState<"es" | "en">("es");
+  const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
   const [cookieImportProfileId, setCookieImportProfileId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"profiles" | "logs">("profiles");
+  const [profileSearch, setProfileSearch] = useState("");
+  const [profileView, setProfileView] = useState<"grid" | "list">("grid");
   const [logs, setLogs] = useState<ApiLogEntry[]>([]);
   const [logLevel, setLogLevel] = useState<"all" | "info" | "warn" | "error">("all");
   const [logSearch, setLogSearch] = useState("");
   const [logAutoRefresh, setLogAutoRefresh] = useState(true);
   const [logLoading, setLogLoading] = useState(false);
   const [logUpdatedAt, setLogUpdatedAt] = useState<string | null>(null);
+  const [logView, setLogView] = useState<"cards" | "list">("cards");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const t: Translations = useMemo(() => (language === "es" ? es : en), [language]);
@@ -104,6 +111,19 @@ export default function HomePage() {
     }
   }
 
+  async function loadAppSettings() {
+    try {
+      const r = await fetch("/api/settings/app", { cache: "no-store" });
+      if (!r.ok) throw new Error(await r.text());
+      const j = await safeJson<{ language: "es" | "en"; addonUrl?: string }>(r);
+      setLanguage(j.language === "en" ? "en" : "es");
+      setAddonUrl(j.addonUrl || "");
+      setAppSettingsLoaded(true);
+    } catch (e: any) {
+      void logClient("error", "App settings load failed", String(e?.message || e));
+    }
+  }
+
   async function loadAll() {
     try {
       const r = await fetch("/api/profiles", { cache: "no-store" });
@@ -130,10 +150,28 @@ export default function HomePage() {
       void logClient("error", "Webshare settings load failed", String(e?.message || e));
     }
 
+    await loadAppSettings();
     await loadProxyStatus();
   }
 
   useEffect(() => { void loadAll(); }, []);
+  useEffect(() => {
+    if (!appSettingsLoaded) return;
+    void (async () => {
+      try {
+        await fetch("/api/settings/app", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ language, addonUrl }),
+        });
+      } catch (e: any) {
+        void logClient("error", "App settings save failed", String(e?.message || e));
+      }
+    })();
+  }, [language, addonUrl, appSettingsLoaded]);
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
   useEffect(() => {
     setActiveProfiles((prev) => {
       const next: Record<string, boolean> = {};
@@ -417,7 +455,37 @@ export default function HomePage() {
     }
   }
 
+  async function exportProfiles() {
+    const payload = JSON.stringify(profiles, null, 2);
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "multig-profiles.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function exportLogs() {
+    const payload = JSON.stringify(logs, null, 2);
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "multig-logs.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   const editing = editId ? profiles.find(x => x.id === editId) : null;
+  const profileSearchLower = profileSearch.trim().toLowerCase();
+  const filteredProfiles = profileSearchLower
+    ? vms.filter((p) => p.name.toLowerCase().includes(profileSearchLower))
+    : vms;
 
   return (
     <main className="container">
@@ -446,6 +514,10 @@ export default function HomePage() {
 
           <button className="btn secondary" onClick={() => setWebshareOpen(true)} disabled={busy} title={t.actions.webshare}>
             <span className="row"><EmojiIcon symbol="⚙️" label="settings" size={16} />{t.actions.webshare}</span>
+          </button>
+
+          <button className="btn secondary" onClick={() => setAppSettingsOpen(true)} disabled={busy} title={t.actions.addons}>
+            <span className="row"><EmojiIcon symbol="🧩" label="addons" size={16} />{t.actions.addons}</span>
           </button>
 
           <button className="btn secondary" onClick={() => setup()} disabled={busy} title={t.actions.setup}>
@@ -516,23 +588,56 @@ export default function HomePage() {
       </div>
 
       {activeTab === "profiles" ? (
-        <div className="grid">
-          {vms.map((p) => (
-            <ProfileCard
-              key={p.id}
-              profile={p}
-              onOpen={(id) => void openProfile(id)}
-              isActive={Boolean(activeProfiles[p.id])}
-              disabled={busy || !system?.venvExists}
-              onEdit={(id) => { setEditId(id); setModalOpen(true); }}
-              onDelete={(id) => deleteProfile(id)}
-              onRotate={(id) => rotateProxy(id)}
-              onImportCookies={(id) => requestImportCookies(id)}
-              onExportCookies={(id) => exportCookies(id)}
-              t={t}
-            />
-          ))}
-        </div>
+        <section className="profilesPanel">
+          <div className="profilesHeader">
+            <div className="row">
+              <input
+                className="input"
+                value={profileSearch}
+                onChange={(e) => setProfileSearch(e.target.value)}
+                placeholder={t.ui.profileSearchPlaceholder}
+                style={{ minWidth: 240 }}
+              />
+              <button className="btn secondary" onClick={() => setProfileSearch("")} disabled={!profileSearch}>
+                {t.actions.clearFilters}
+              </button>
+            </div>
+            <div className="row">
+              <button
+                className={`btn secondary ${profileView === "grid" ? "activeBtn" : ""}`}
+                onClick={() => setProfileView("grid")}
+              >
+                {t.actions.viewGrid}
+              </button>
+              <button
+                className={`btn secondary ${profileView === "list" ? "activeBtn" : ""}`}
+                onClick={() => setProfileView("list")}
+              >
+                {t.actions.viewList}
+              </button>
+              <button className="btn secondary" onClick={() => void exportProfiles()} disabled={profiles.length === 0}>
+                {t.actions.exportProfiles}
+              </button>
+            </div>
+          </div>
+          <div className={`grid profilesGrid ${profileView === "list" ? "list" : ""}`}>
+            {filteredProfiles.map((p) => (
+              <ProfileCard
+                key={p.id}
+                profile={p}
+                onOpen={(id) => void openProfile(id)}
+                isActive={Boolean(activeProfiles[p.id])}
+                disabled={busy || !system?.venvExists}
+                onEdit={(id) => { setEditId(id); setModalOpen(true); }}
+                onDelete={(id) => deleteProfile(id)}
+                onRotate={(id) => rotateProxy(id)}
+                onImportCookies={(id) => requestImportCookies(id)}
+                onExportCookies={(id) => exportCookies(id)}
+                t={t}
+              />
+            ))}
+          </div>
+        </section>
       ) : (
         <section className="logsPanel">
           <header className="logsHeader">
@@ -546,6 +651,9 @@ export default function HomePage() {
               </button>
               <button className="btn secondary" onClick={() => { setLogSearch(""); setLogLevel("all"); }} disabled={logLoading}>
                 {t.actions.clearFilters}
+              </button>
+              <button className="btn secondary" onClick={() => void exportLogs()} disabled={logs.length === 0}>
+                {t.actions.exportLogs}
               </button>
               <div className="toggleRow">
                 <span className="toggleLabelText">{t.ui.logsAutoRefresh}</span>
@@ -580,12 +688,26 @@ export default function HomePage() {
               <option value="warn">{t.ui.logsLevelWarn}</option>
               <option value="error">{t.ui.logsLevelError}</option>
             </select>
+            <div className="row">
+              <button
+                className={`btn secondary small ${logView === "cards" ? "activeBtn" : ""}`}
+                onClick={() => setLogView("cards")}
+              >
+                {t.actions.viewGrid}
+              </button>
+              <button
+                className={`btn secondary small ${logView === "list" ? "activeBtn" : ""}`}
+                onClick={() => setLogView("list")}
+              >
+                {t.actions.viewList}
+              </button>
+            </div>
             <span className="small">
               {logUpdatedAt ? t.ui.logsUpdated.replace("{time}", new Date(logUpdatedAt).toLocaleTimeString()) : "—"}
             </span>
           </div>
 
-          <div className="logsList">
+          <div className={`logsList ${logView === "list" ? "list" : ""}`}>
             {logs.length === 0 ? (
               <div className="logEmpty">{t.ui.logsEmpty}</div>
             ) : (
@@ -653,16 +775,24 @@ export default function HomePage() {
         style={{ display: "none" }}
         onChange={handleCookieFileChange}
       />
-    
-<WebshareSettingsModal
-  isOpen={webshareOpen}
-  status={webshare}
-  onClose={() => setWebshareOpen(false)}
-  onSaved={(s) => { setWebshare(s); void loadAll(); }}
-  onSynced={() => { void loadProxyStatus(); }}
-  t={t}
-/>
 
-</main>
+      <WebshareSettingsModal
+        isOpen={webshareOpen}
+        status={webshare}
+        onClose={() => setWebshareOpen(false)}
+        onSaved={(s) => { setWebshare(s); void loadAll(); }}
+        onSynced={() => { void loadProxyStatus(); }}
+        t={t}
+      />
+
+      <AppSettingsModal
+        isOpen={appSettingsOpen}
+        addonUrl={addonUrl}
+        onClose={() => setAppSettingsOpen(false)}
+        onSaved={(url) => { setAddonUrl(url); }}
+        t={t}
+      />
+
+    </main>
   );
 }

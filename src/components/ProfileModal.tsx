@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { profileIcons } from "./icons";
 import type { Translations } from "../i18n";
 import { EmojiIcon } from "./EmojiIcon";
 
@@ -80,17 +79,10 @@ export function ProfileModal(props: ProfileModalProps) {
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t.fields.namePlaceholder} />
 
         <label className="label">{t.fields.icon}</label>
-        <div className="iconGrid">
-          {profileIcons.map((i) => (
-            <button
-              key={i}
-              className={"iconBtn" + (i === icon ? " active" : "")}
-              onClick={() => setIcon(i)}
-              type="button"
-            >
-              {i}
-            </button>
-          ))}
+        <div className="card" style={{ marginTop: 4 }}>
+          <p className="small" style={{ margin: 0 }}>
+            {t.ui.avatarNote}
+          </p>
         </div>
 
         <label className="label">{t.fields.url}</label>

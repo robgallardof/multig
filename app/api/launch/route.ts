@@ -74,7 +74,15 @@ export async function POST(req: Request) {
     const proxyPassword = settings.webshare?.password;
     const camoufoxOptions = buildCamoufoxOptions(profile, assigned ?? undefined);
 
-    const pid = CamoufoxLauncher.launch(id, url, proxyServer, proxyUsername, proxyPassword, camoufoxOptions);
+    const pid = CamoufoxLauncher.launch(
+      id,
+      url,
+      proxyServer,
+      proxyUsername,
+      proxyPassword,
+      camoufoxOptions,
+      settings.addonUrl
+    );
     if (pid <= 0) {
       LogRepository.error("Camoufox launch failed", "PID not returned", { profileId: id, url });
       return NextResponse.json({ error: "Failed to launch Camoufox." }, { status: 500 });

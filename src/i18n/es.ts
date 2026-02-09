@@ -5,7 +5,7 @@
  */
 export const es = {
   app: {
-    title: "Gestor de sesiones Camoufox",
+    title: "MultiG - by R. Gallardo",
     subtitle: "Perfiles persistentes (cookies/storage) con nombre e icono.",
     setupTitle: "Preparar entorno",
     setupBody: "Para abrir ventanas, primero instala Camoufox en el entorno Python. Puedes hacerlo desde aquí.",
@@ -27,6 +27,13 @@ export const es = {
     exportCookies: "Exportar cookies",
     copy: "Copiar",
     clearFilters: "Limpiar filtros",
+    show: "Mostrar",
+    hide: "Ocultar",
+    addons: "Extensiones",
+    exportProfiles: "Exportar perfiles",
+    exportLogs: "Exportar logs",
+    viewGrid: "Cuadrícula",
+    viewList: "Lista",
   },
   fields: {
     name: "Nombre",
@@ -44,6 +51,8 @@ export const es = {
     webshareUsernamePlaceholder: "Usuario proxy",
     websharePassword: "Password (opcional)",
     websharePasswordPlaceholder: "Password proxy",
+    addonUrl: "URL del addon",
+    addonUrlPlaceholder: "https://addons.mozilla.org/.../latest.xpi",
   },
   status: {
     ready: "Listo",
@@ -84,6 +93,8 @@ export const es = {
     cookiesInvalid: "El archivo debe contener un JSON con un array de cookies.",
     logCopied: "✅ Log copiado",
     logCopyFailed: "❌ No se pudo copiar el log",
+    settingsSaved: "✅ Configuración guardada",
+    settingsSaveError: "❌ No se pudo guardar la configuración",
   },
   ui: {
     statusTitle: "Status",
@@ -108,8 +119,11 @@ export const es = {
     logsUpdated: "Actualizado: {time}",
     logsEmpty: "No hay logs todavía.",
     logsCount: "{count} logs",
+    profileSearchPlaceholder: "Buscar perfiles...",
+    addonHelper: "Pega la URL (XPI) del addon que quieres precargar. Deja vacío para usar Tampermonkey por defecto.",
+    avatarNote: "Los avatares se generan automáticamente a partir del nombre del perfil.",
     webshareSecurityNote:
-      "Tu token/credenciales se guardan solo en el servidor y encriptados en disco. La UI no vuelve a recibirlos. " +
+      "Tu token/credenciales se guardan en la base de datos y encriptados. Puedes verlos bajo demanda en esta vista. " +
       "La asignación de IP es automática y aleatoria al abrir cada perfil (sin repetirse entre instancias activas).",
     autoProxyNote:
       "El proxy se asigna automáticamente cuando abres el perfil. Cada instancia recibe una IP aleatoria y no se repite entre perfiles activos.",

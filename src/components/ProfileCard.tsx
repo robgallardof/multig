@@ -49,12 +49,23 @@ export function ProfileCard(props: ProfileCardProps) {
   const t = props.t;
 
   const last = p.lastOpenedAt ? new Date(p.lastOpenedAt).toLocaleString() : null;
+  const initials = p.name
+    .split(" ")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "MG";
+  const hue = Array.from(p.name || "MultiG")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360;
 
   return (
     <div className="card">
       <div className="cardTop">
         <div className="pTitle">
-          <div className="pIcon">{p.icon}</div>
+          <div className="pAvatar" style={{ background: `hsl(${hue} 70% 35% / 0.9)` }} aria-hidden="true">
+            <span>{initials}</span>
+          </div>
           <div>
             <p className="pName">{p.name}</p>
             <div className="pMeta">

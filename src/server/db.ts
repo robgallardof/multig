@@ -89,6 +89,12 @@ export class Db {
       );
 
       CREATE INDEX IF NOT EXISTS idx_logs_createdAt ON logs(createdAt);
+
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      );
     `);
 
     const tableInfo = (name: string) => db.prepare(`PRAGMA table_info(${name})`).all() as { name: string }[];
