@@ -1,0 +1,17 @@
+[
+  {
+    "token": "multig-1a6f5c2d-8b9c-4e32-9d50-7f9a3c1b2e4d",
+    "device": "desktop-1",
+    "enabled": true
+  },
+  {
+    "token": "multig-7d3c9a10-5f2e-4b91-a3c7-8e6f1d0b4a2c",
+    "device": "laptop-1",
+    "enabled": true
+  },
+  {
+    "token": "multig-3f8b2c6a-9d11-4a07-8c2d-5e9b7a1c4f0e",
+    "device": "mini-pc-1",
+    "enabled": true
+  }
+]

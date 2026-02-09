@@ -1,0 +1,9 @@
+.git
+node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
+profiles
+*.log
+data/*.db
+data/*.enc.json
