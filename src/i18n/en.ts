@@ -25,6 +25,8 @@ export const en = {
     sync: "Sync",
     importCookies: "Import cookies",
     exportCookies: "Export cookies",
+    copy: "Copy",
+    clearFilters: "Clear filters",
   },
   fields: {
     name: "Name",
@@ -80,6 +82,8 @@ export const en = {
     cookiesImported: "✅ Cookies imported",
     cookiesExported: "✅ Cookies exported",
     cookiesInvalid: "The file must contain a JSON array of cookies.",
+    logCopied: "✅ Log copied",
+    logCopyFailed: "❌ Could not copy log",
   },
   ui: {
     statusTitle: "Status",
@@ -91,6 +95,19 @@ export const en = {
     createProfileTitle: "Create profile",
     editProfileTitle: "Edit profile",
     languageToggle: "Language",
+    tabProfiles: "Profiles",
+    tabLogs: "Logs",
+    logsTitle: "Real-time logs",
+    logsSubtitle: "Events, errors, and system operations stored in the database.",
+    logsSearchPlaceholder: "Search by message, detail, or context...",
+    logsAutoRefresh: "Auto refresh",
+    logsLevelAll: "All",
+    logsLevelInfo: "Info",
+    logsLevelWarn: "Warn",
+    logsLevelError: "Error",
+    logsUpdated: "Updated: {time}",
+    logsEmpty: "No logs yet.",
+    logsCount: "{count} logs",
     webshareSecurityNote:
       "Your token/credentials are stored only on the server and encrypted at rest. The UI never receives them back. " +
       "IP assignment is automatic and random when opening each profile (no repeats among active instances).",

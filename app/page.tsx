@@ -30,6 +30,14 @@ type ApiProfile = {
 type ApiProfilesResponse = { profiles: ApiProfile[]; createdId?: string };
 type ApiSystemStatus = { venvExists: boolean };
 type ApiProxyStatus = { total: number; available: number };
+type ApiLogEntry = {
+  id: number;
+  level: "info" | "warn" | "error";
+  message: string;
+  detail?: string;
+  context?: Record<string, unknown>;
+  createdAt: string;
+};
 
 /**
  * Home page.
@@ -50,6 +58,13 @@ export default function HomePage() {
   const [activeProfiles, setActiveProfiles] = useState<Record<string, boolean>>({});
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [cookieImportProfileId, setCookieImportProfileId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"profiles" | "logs">("profiles");
+  const [logs, setLogs] = useState<ApiLogEntry[]>([]);
+  const [logLevel, setLogLevel] = useState<"all" | "info" | "warn" | "error">("all");
+  const [logSearch, setLogSearch] = useState("");
+  const [logAutoRefresh, setLogAutoRefresh] = useState(true);
+  const [logLoading, setLogLoading] = useState(false);
+  const [logUpdatedAt, setLogUpdatedAt] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const t: Translations = useMemo(() => (language === "es" ? es : en), [language]);
@@ -116,11 +131,53 @@ export default function HomePage() {
     window.setTimeout(() => setToast(""), 3500);
   }
 
+  async function logClient(level: "info" | "warn" | "error", message: string, detail?: string, context?: Record<string, unknown>) {
+    try {
+      await fetch("/api/logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level, message, detail, context }),
+      });
+    } catch {
+      // ignore logging failures on client
+    }
+  }
+
   function formatProxiesAvailable(available: number | string, total: number | string) {
     return t.ui.proxiesAvailableFormat
       .replace("{available}", String(available))
       .replace("{total}", String(total));
   }
+
+  async function loadLogs(silent = false) {
+    if (!silent) setLogLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("limit", "200");
+      if (logLevel !== "all") params.set("level", logLevel);
+      if (logSearch.trim()) params.set("search", logSearch.trim());
+      const r = await fetch(`/api/logs?${params.toString()}`, { cache: "no-store" });
+      if (!r.ok) throw new Error(await r.text());
+      const j = await safeJson<{ logs: ApiLogEntry[] }>(r);
+      setLogs(j.logs || []);
+      setLogUpdatedAt(new Date().toISOString());
+    } catch (e: any) {
+      if (!silent) {
+        showToast(`❌ ${String(e?.message || e)}`);
+        void logClient("error", "Logs load failed", String(e?.message || e));
+      }
+    } finally {
+      if (!silent) setLogLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab !== "logs") return;
+    void loadLogs();
+    if (!logAutoRefresh) return;
+    const id = window.setInterval(() => void loadLogs(true), 5000);
+    return () => window.clearInterval(id);
+  }, [activeTab, logAutoRefresh, logLevel, logSearch]);
 
   async function createProfile(values: ProfileModalValues) {
     setBusy(true);
@@ -137,6 +194,7 @@ export default function HomePage() {
       showToast(t.messages.profileCreated);
     } catch (e: any) {
       showToast(`❌ ${String(e?.message || e)}`);
+      void logClient("error", "Profile create failed", String(e?.message || e), { name: values.name });
     } finally {
       setBusy(false);
     }
@@ -157,6 +215,7 @@ export default function HomePage() {
       showToast(t.messages.profileUpdated);
     } catch (e: any) {
       showToast(`❌ ${String(e?.message || e)}`);
+      void logClient("error", "Profile update failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
     }
@@ -173,6 +232,7 @@ export default function HomePage() {
       showToast(t.messages.profileDeleted);
     } catch (e: any) {
       showToast(`❌ ${String(e?.message || e)}`);
+      void logClient("error", "Profile delete failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
     }
@@ -200,6 +260,7 @@ export default function HomePage() {
       await loadAll();
     } catch (e: any) {
       showToast(`❌ ${String(e?.message || e)}`);
+      void logClient("error", "Profile launch failed", String(e?.message || e), { id, url });
     } finally {
       setBusy(false);
     }
@@ -240,6 +301,7 @@ export default function HomePage() {
       showToast(t.messages.cookiesImported);
     } catch (e: any) {
       showToast(`❌ ${String(e?.message || e)}`);
+      void logClient("error", "Cookies import failed", String(e?.message || e), { profileId });
     } finally {
       setBusy(false);
       setCookieImportProfileId(null);
@@ -271,6 +333,7 @@ export default function HomePage() {
       showToast(t.messages.cookiesExported);
     } catch (e: any) {
       showToast(`❌ ${String(e?.message || e)}`);
+      void logClient("error", "Cookies export failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
     }
@@ -291,6 +354,7 @@ export default function HomePage() {
       await loadProxyStatus();
     } catch (e: any) {
       showToast(`❌ ${String(e?.message || e)}`);
+      void logClient("error", "Proxy rotate failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
     }
@@ -311,8 +375,27 @@ export default function HomePage() {
       await loadAll();
     } catch (e: any) {
       showToast(`❌ ${String(e?.message || e)}`);
+      void logClient("error", "Python setup failed", String(e?.message || e));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function copyLog(entry: ApiLogEntry) {
+    const payload = [
+      `[${entry.createdAt}] ${entry.level.toUpperCase()} - ${entry.message}`,
+      entry.detail ? `Detail: ${entry.detail}` : "",
+      entry.context ? `Context: ${JSON.stringify(entry.context, null, 2)}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    try {
+      await navigator.clipboard.writeText(payload);
+      showToast(t.messages.logCopied);
+    } catch (e: any) {
+      showToast(t.messages.logCopyFailed);
+      void logClient("error", "Log copy failed", String(e?.message || e), { logId: entry.id });
     }
   }
 
@@ -377,6 +460,21 @@ export default function HomePage() {
         </div>
       </div>
 
+      <div className="tabs">
+        <button
+          className={`tab ${activeTab === "profiles" ? "active" : ""}`}
+          onClick={() => setActiveTab("profiles")}
+        >
+          {t.ui.tabProfiles}
+        </button>
+        <button
+          className={`tab ${activeTab === "logs" ? "active" : ""}`}
+          onClick={() => setActiveTab("logs")}
+        >
+          {t.ui.tabLogs}
+        </button>
+      </div>
+
       <div className="hr" />
 
       <div className="row" style={{ justifyContent: "space-between" }}>
@@ -392,25 +490,109 @@ export default function HomePage() {
             : `${t.status.proxiesAvailable}: —`}
         </span>
         <span className="badge">{profiles.length} {t.ui.profilesCount}</span>
+        {activeTab === "logs" && (
+          <span className="badge">
+            {t.ui.logsCount.replace("{count}", String(logs.length))}
+          </span>
+        )}
       </div>
 
-      <div className="grid">
-        {vms.map((p) => (
-          <ProfileCard
-            key={p.id}
-            profile={p}
-            onOpen={(id) => void openProfile(id)}
-            isActive={Boolean(activeProfiles[p.id])}
-            disabled={busy || !system?.venvExists}
-            onEdit={(id) => { setEditId(id); setModalOpen(true); }}
-            onDelete={(id) => deleteProfile(id)}
-            onRotate={(id) => rotateProxy(id)}
-            onImportCookies={(id) => requestImportCookies(id)}
-            onExportCookies={(id) => exportCookies(id)}
-            t={t}
-          />
-        ))}
-      </div>
+      {activeTab === "profiles" ? (
+        <div className="grid">
+          {vms.map((p) => (
+            <ProfileCard
+              key={p.id}
+              profile={p}
+              onOpen={(id) => void openProfile(id)}
+              isActive={Boolean(activeProfiles[p.id])}
+              disabled={busy || !system?.venvExists}
+              onEdit={(id) => { setEditId(id); setModalOpen(true); }}
+              onDelete={(id) => deleteProfile(id)}
+              onRotate={(id) => rotateProxy(id)}
+              onImportCookies={(id) => requestImportCookies(id)}
+              onExportCookies={(id) => exportCookies(id)}
+              t={t}
+            />
+          ))}
+        </div>
+      ) : (
+        <section className="logsPanel">
+          <header className="logsHeader">
+            <div>
+              <h2 className="h2">{t.ui.logsTitle}</h2>
+              <div className="small">{t.ui.logsSubtitle}</div>
+            </div>
+            <div className="row">
+              <button className="btn secondary" onClick={() => void loadLogs()} disabled={logLoading}>
+                <span className="row"><EmojiIcon symbol="🧭" label="refresh" size={16} />{t.actions.refresh}</span>
+              </button>
+              <button className="btn secondary" onClick={() => { setLogSearch(""); setLogLevel("all"); }} disabled={logLoading}>
+                {t.actions.clearFilters}
+              </button>
+              <div className="toggleRow">
+                <span className="toggleLabelText">{t.ui.logsAutoRefresh}</span>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={logAutoRefresh}
+                    onChange={(e) => setLogAutoRefresh(e.target.checked)}
+                  />
+                  <span className="toggleTrack">
+                    <span className="toggleThumb" />
+                  </span>
+                </label>
+              </div>
+            </div>
+          </header>
+
+          <div className="logsFilters">
+            <input
+              className="input"
+              placeholder={t.ui.logsSearchPlaceholder}
+              value={logSearch}
+              onChange={(e) => setLogSearch(e.target.value)}
+            />
+            <select
+              className="select"
+              value={logLevel}
+              onChange={(e) => setLogLevel(e.target.value as typeof logLevel)}
+            >
+              <option value="all">{t.ui.logsLevelAll}</option>
+              <option value="info">{t.ui.logsLevelInfo}</option>
+              <option value="warn">{t.ui.logsLevelWarn}</option>
+              <option value="error">{t.ui.logsLevelError}</option>
+            </select>
+            <span className="small">
+              {logUpdatedAt ? t.ui.logsUpdated.replace("{time}", new Date(logUpdatedAt).toLocaleTimeString()) : "—"}
+            </span>
+          </div>
+
+          <div className="logsList">
+            {logs.length === 0 ? (
+              <div className="logEmpty">{t.ui.logsEmpty}</div>
+            ) : (
+              logs.map((entry) => (
+                <article key={entry.id} className="logItem">
+                  <div className="logMeta">
+                    <span className={`logBadge ${entry.level}`}>{entry.level.toUpperCase()}</span>
+                    <span className="logTime">{new Date(entry.createdAt).toLocaleString()}</span>
+                  </div>
+                  <div className="logMessage">{entry.message}</div>
+                  {entry.detail && <div className="logDetail">{entry.detail}</div>}
+                  {entry.context && (
+                    <pre className="logContext">{JSON.stringify(entry.context, null, 2)}</pre>
+                  )}
+                  <div className="logActions">
+                    <button className="btn secondary small" onClick={() => void copyLog(entry)}>
+                      {t.actions.copy}
+                    </button>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+      )}
 
       <div className="footer">
         {t.footer.copyright} • {t.footer.by}

@@ -26,6 +26,7 @@ a{color:inherit}
   font-weight:900;
 }
 .h1{margin:0;font-size:22px}
+.h2{margin:0;font-size:18px}
 .sub{color:var(--muted);line-height:1.45;margin-top:6px}
 .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .input{
@@ -82,6 +83,21 @@ a{color:inherit}
 .spacer{height:10px}
 .footer{margin-top:22px;color:var(--muted);font-size:12px;text-align:center}
 .hr{height:1px;background:var(--border);margin:16px 0}
+.tabs{display:flex;gap:8px;align-items:center;margin:12px 0 6px}
+.tab{
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.03);
+  color:var(--muted);
+  padding:8px 14px;
+  border-radius:999px;
+  cursor:pointer;
+  font-weight:700;
+}
+.tab.active{
+  color:var(--text);
+  background:rgba(79,140,255,.18);
+  border-color:rgba(79,140,255,.6);
+}
 .toggleRow{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   border:1px solid var(--border);border-radius:12px;padding:8px 10px;
@@ -122,6 +138,59 @@ a{color:inherit}
 .iconBtn{border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--text);border-radius:12px;padding:8px 10px;cursor:pointer}
 .iconBtn.active{border-color:#5aa2ff;background:rgba(79,140,255,.12)}
 .small{color:var(--muted);font-size:12px;line-height:1.45}
+.select{
+  background:rgba(13,19,32,.85);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px 12px;
+  color:var(--text);
+  outline:none;
+}
+.btn.small{padding:6px 10px;font-size:12px}
+
+.logsPanel{
+  margin-top:16px;
+  background:linear-gradient(180deg, rgba(17,27,46,.85), rgba(15,22,36,.95));
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:16px;
+  box-shadow: var(--shadow);
+}
+.logsHeader{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.logsFilters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.logsList{margin-top:14px;display:grid;gap:12px}
+.logItem{
+  border:1px solid var(--border);
+  background:rgba(12,18,30,.8);
+  border-radius:14px;
+  padding:12px;
+  display:grid;
+  gap:8px;
+}
+.logMeta{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.logBadge{
+  padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800;
+  border:1px solid var(--border);background:rgba(255,255,255,.04);
+}
+.logBadge.info{color:var(--ok);border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.12)}
+.logBadge.warn{color:var(--warn);border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.12)}
+.logBadge.error{color:var(--danger);border-color:rgba(239,68,68,.45);background:rgba(239,68,68,.12)}
+.logTime{color:var(--muted);font-size:12px}
+.logMessage{font-weight:700}
+.logDetail{color:var(--muted);font-size:13px}
+.logContext{
+  background:rgba(9,14,24,.9);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px;
+  font-size:12px;
+  white-space:pre-wrap;
+}
+.logActions{display:flex;justify-content:flex-end}
+.logEmpty{
+  padding:18px;border:1px dashed var(--border);border-radius:14px;color:var(--muted);
+  text-align:center;
+}
 
 .cardActions{flex-wrap:wrap;justify-content:flex-end}
 .cardCookieActions{gap:8px}
@@ -142,4 +211,6 @@ a{color:inherit}
   .cardActions{width:100%;justify-content:flex-start}
   .toggleRow{flex-direction:column;align-items:flex-start}
   .toggleRow .row{width:100%;justify-content:space-between}
+  .logsHeader{flex-direction:column;align-items:flex-start}
+  .logsFilters{align-items:flex-start}
 }

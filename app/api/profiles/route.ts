@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { ProfileRepositorySqlite } from "../../../src/server/profileRepositorySqlite";
 import { listPublicProfiles } from "../../../src/server/profilePresenter";
+import { LogRepository } from "../../../src/server/logRepository";
 
 /**
  * GET /api/profiles
@@ -13,6 +14,7 @@ export async function GET() {
     const profiles = ProfileRepositorySqlite.list();
     return NextResponse.json({ profiles: listPublicProfiles(profiles) });
   } catch (e: any) {
+    LogRepository.error("Profiles list failed", String(e?.message || e));
     return NextResponse.json({ error: String(e?.message || e), profiles: [] }, { status: 500 });
   }
 }
@@ -35,6 +37,7 @@ export async function POST(req: Request) {
       : "windows";
 
     if (!name) {
+      LogRepository.warn("Profile create missing name");
       return NextResponse.json({ error: "name is required", profiles: [] }, { status: 400 });
     }
 
@@ -49,8 +52,10 @@ export async function POST(req: Request) {
 
     const profiles = ProfileRepositorySqlite.create(p as any);
     const createdId = p.id;
+    LogRepository.info("Profile created", { profileId: createdId, name });
     return NextResponse.json({ createdId, profiles: listPublicProfiles(profiles) });
   } catch (e: any) {
+    LogRepository.error("Profile create failed", String(e?.message || e));
     return NextResponse.json({ error: String(e?.message || e), profiles: [] }, { status: 500 });
   }
 }
