@@ -71,7 +71,7 @@ export function ProfileModal(props: ProfileModalProps) {
   if (!props.isOpen) return null;
 
   const tokenList = wplaceTokens
-    .split(/\r?\n/g)
+    .split(/[,\r\n]+/g)
     .map((token) => token.trim())
     .filter(Boolean);
   const canSave = props.mode === "create" && wplaceEnabled

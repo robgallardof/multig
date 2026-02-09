@@ -115,9 +115,10 @@ export default function HomePage() {
     try {
       const r = await fetch("/api/settings/app", { cache: "no-store" });
       if (!r.ok) throw new Error(await r.text());
-      const j = await safeJson<{ language: "es" | "en"; addonUrl?: string }>(r);
+      const j = await safeJson<{ language: "es" | "en"; addonUrl?: string; defaultUrl?: string }>(r);
       setLanguage(j.language === "en" ? "en" : "es");
       setAddonUrl(j.addonUrl || "");
+      setDefaultUrl(j.defaultUrl || "https://www.robertogallardo.dev");
       setAppSettingsLoaded(true);
     } catch (e: any) {
       void logClient("error", "App settings load failed", String(e?.message || e));
@@ -162,13 +163,13 @@ export default function HomePage() {
         await fetch("/api/settings/app", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ language, addonUrl }),
+          body: JSON.stringify({ language, addonUrl, defaultUrl }),
         });
       } catch (e: any) {
         void logClient("error", "App settings save failed", String(e?.message || e));
       }
     })();
-  }, [language, addonUrl, appSettingsLoaded]);
+  }, [language, addonUrl, defaultUrl, appSettingsLoaded]);
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);

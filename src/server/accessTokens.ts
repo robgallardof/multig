@@ -1,3 +1,5 @@
+import { AccessTokenRepository } from "./accessTokenRepository";
+
 type AccessTokenEntry = {
   token: string;
   device: string;
@@ -9,6 +11,7 @@ const ENCODED_TOKENS_URL =
 const CACHE_TTL_MS = 5 * 60 * 1000;
 let cachedTokens: AccessTokenEntry[] | null = null;
 let lastFetchMs = 0;
+let lastDbReadMs = 0;
 
 function decodeBase64(value: string): string {
   if (typeof atob === "function") {
@@ -30,6 +33,19 @@ async function fetchAccessTokens(): Promise<AccessTokenEntry[]> {
   }
 
   try {
+    if (!cachedTokens || now - lastDbReadMs >= CACHE_TTL_MS) {
+      const stored = await AccessTokenRepository.load<AccessTokenEntry>();
+      if (stored?.tokens?.length) {
+        cachedTokens = stored.tokens;
+        lastFetchMs = now;
+      }
+      lastDbReadMs = now;
+    }
+
+    if (cachedTokens && now - lastFetchMs < CACHE_TTL_MS) {
+      return cachedTokens;
+    }
+
     const url = decodeTokensUrl();
     const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
@@ -42,6 +58,7 @@ async function fetchAccessTokens(): Promise<AccessTokenEntry[]> {
     const tokens = (await response.json()) as AccessTokenEntry[];
     cachedTokens = tokens;
     lastFetchMs = now;
+    await AccessTokenRepository.save(tokens);
     return tokens;
   } catch {
     return cachedTokens ?? [];
