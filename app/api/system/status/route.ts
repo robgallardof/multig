@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PythonSetup } from "../../../../src/server/pythonSetup";
+import { AppConfig } from "../../../../src/server/appConfig";
 
 /**
  * GET /api/system/status
@@ -8,5 +9,5 @@ import { PythonSetup } from "../../../../src/server/pythonSetup";
  */
 export async function GET() {
   const s = PythonSetup.status();
-  return NextResponse.json({ ...s });
+  return NextResponse.json({ ...s, wplaceEnabled: AppConfig.wplaceEnabled });
 }

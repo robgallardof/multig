@@ -22,6 +22,10 @@ from shutil import copyfile
 from camoufox.sync_api import Camoufox
 
 TAMPERMONKEY_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/tampermonkey/latest.xpi"
+WPLACE_SCRIPT_DEFAULT = (
+    "https://www.tampermonkey.net/script_installation.php#url="
+    "https://github.com/SoundOfTheSky/wplace-bot/raw/refs/heads/main/dist.user.js"
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -88,6 +92,44 @@ def _ensure_addon(profile_dir: Path, addon_url: str) -> None:
         copyfile(addon_path, target)
 
 
+def _read_env_flag(value: str | None) -> bool:
+    if not value:
+        return False
+    return value.strip().lower() in {"1", "true", "yes"}
+
+
+def _wplace_enabled() -> bool:
+    return _read_env_flag(os.getenv("WPLACE_ENABLED"))
+
+
+def _wplace_script_url() -> str:
+    return os.getenv("WPLACE_TAMPERMONKEY_SCRIPT_URL", "").strip() or WPLACE_SCRIPT_DEFAULT
+
+
+def _wplace_marker(profile_dir: Path) -> Path:
+    return profile_dir / ".wplace_userscript_installed"
+
+
+def _install_wplace_script(ctx: Camoufox, profile_dir: Path) -> None:
+    if not _wplace_enabled():
+        return
+    marker = _wplace_marker(profile_dir)
+    if marker.exists():
+        return
+    install_url = _wplace_script_url()
+    page = ctx.new_page()
+    page.goto(install_url)
+    try:
+        button = page.get_by_role("button", name="Install")
+        if button.count() > 0:
+            button.first.click()
+    except Exception:
+        pass
+    page.wait_for_timeout(2000)
+    page.close()
+    marker.write_text("installed")
+
+
 def main() -> None:
     """
     Launches one persistent session window.
@@ -129,6 +171,7 @@ def main() -> None:
         proxy=proxy,
         **config,
     ) as ctx:
+        _install_wplace_script(ctx, profile_dir)
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         page.goto(a.url)
         page.wait_for_timeout(24 * 60 * 60 * 1000)
