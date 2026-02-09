@@ -72,6 +72,8 @@ export default function HomePage() {
   const [logLoading, setLogLoading] = useState(false);
   const [logUpdatedAt, setLogUpdatedAt] = useState<string | null>(null);
   const [logView, setLogView] = useState<"cards" | "list">("cards");
+  const [selectedProfiles, setSelectedProfiles] = useState<Record<string, boolean>>({});
+  const [importingCookies, setImportingCookies] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const t: Translations = useMemo(() => (language === "es" ? es : en), [language]);
@@ -175,6 +177,15 @@ export default function HomePage() {
   }, [language]);
   useEffect(() => {
     setActiveProfiles((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const p of profiles) {
+        if (prev[p.id]) next[p.id] = true;
+      }
+      return next;
+    });
+  }, [profiles]);
+  useEffect(() => {
+    setSelectedProfiles((prev) => {
       const next: Record<string, boolean> = {};
       for (const p of profiles) {
         if (prev[p.id]) next[p.id] = true;
@@ -312,6 +323,10 @@ export default function HomePage() {
   }
 
   async function openProfile(id: string) {
+    if (importingCookies) {
+      showToast(t.messages.cookiesImporting);
+      return;
+    }
     const p = profiles.find(x => x.id === id);
     const url = (p?.url && p.url.trim()) ? p.url.trim() : defaultUrl.trim();
 
@@ -355,6 +370,7 @@ export default function HomePage() {
     if (!file || !profileId) return;
 
     setBusy(true);
+    setImportingCookies(true);
     try {
       const text = await file.text();
       let parsed: unknown;
@@ -377,6 +393,7 @@ export default function HomePage() {
       void logClient("error", "Cookies import failed", String(e?.message || e), { profileId });
     } finally {
       setBusy(false);
+      setImportingCookies(false);
       setCookieImportProfileId(null);
     }
   }
@@ -434,6 +451,10 @@ export default function HomePage() {
   }
 
   async function openAll() {
+    if (importingCookies) {
+      showToast(t.messages.cookiesImporting);
+      return;
+    }
     for (const p of profiles) {
       await openProfile(p.id);
     }
@@ -498,11 +519,55 @@ export default function HomePage() {
     URL.revokeObjectURL(url);
   }
 
+  function toggleProfileSelection(id: string, selected: boolean) {
+    setSelectedProfiles((prev) => ({ ...prev, [id]: selected }));
+  }
+
+  function selectAllFiltered() {
+    setSelectedProfiles((prev) => {
+      const next = { ...prev };
+      for (const p of filteredProfiles) {
+        next[p.id] = true;
+      }
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedProfiles({});
+  }
+
+  async function deleteSelectedProfiles() {
+    const ids = Object.keys(selectedProfiles).filter((id) => selectedProfiles[id]);
+    if (ids.length === 0) return;
+    const confirmMessage = t.confirm.deleteSelectedBody.replace("{count}", String(ids.length));
+    if (!confirm(`${t.confirm.deleteSelectedTitle}\n\n${confirmMessage}`)) return;
+    setBusy(true);
+    try {
+      const results = await Promise.all(ids.map(async (id) => {
+        const r = await fetch(`/api/profiles/${encodeURIComponent(id)}`, { method: "DELETE" });
+        if (!r.ok) throw new Error(await r.text());
+        return r;
+      }));
+      if (results.length > 0) {
+        await loadAll();
+      }
+      clearSelection();
+      showToast(t.messages.profilesDeleted.replace("{count}", String(ids.length)));
+    } catch (e: any) {
+      showToast(`❌ ${String(e?.message || e)}`);
+      void logClient("error", "Batch profile delete failed", String(e?.message || e), { ids });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const editing = editId ? profiles.find(x => x.id === editId) : null;
   const profileSearchLower = profileSearch.trim().toLowerCase();
   const filteredProfiles = profileSearchLower
     ? vms.filter((p) => p.name.toLowerCase().includes(profileSearchLower))
     : vms;
+  const selectedCount = Object.keys(selectedProfiles).filter((id) => selectedProfiles[id]).length;
 
   return (
     <main className="container">
@@ -541,7 +606,12 @@ export default function HomePage() {
             <span className="row"><EmojiIcon symbol="🛠️" label="setup" size={16} />{t.actions.setup}</span>
           </button>
 
-          <button className="btn secondary" onClick={() => openAll()} disabled={busy || profiles.length === 0} title={t.actions.openAll}>
+          <button
+            className="btn secondary"
+            onClick={() => openAll()}
+            disabled={busy || importingCookies || profiles.length === 0}
+            title={t.actions.openAll}
+          >
             <span className="row"><EmojiIcon symbol="▶️" label="open all" size={16} />{t.actions.openAll}</span>
           </button>
 
@@ -635,6 +705,18 @@ export default function HomePage() {
               <button className="btn secondary" onClick={() => void exportProfiles()} disabled={profiles.length === 0}>
                 {t.actions.exportProfiles}
               </button>
+              <button className="btn secondary" onClick={() => selectAllFiltered()} disabled={filteredProfiles.length === 0}>
+                {t.actions.selectAll}
+              </button>
+              <button className="btn secondary" onClick={() => clearSelection()} disabled={selectedCount === 0}>
+                {t.actions.clearSelection}
+              </button>
+              <button className="btn danger" onClick={() => deleteSelectedProfiles()} disabled={selectedCount === 0}>
+                {t.actions.deleteSelected}
+              </button>
+              <span className="badge">
+                {t.ui.selectedCount.replace("{count}", String(selectedCount))}
+              </span>
             </div>
           </div>
           <div className={`grid profilesGrid ${profileView === "list" ? "list" : ""}`}>
@@ -644,12 +726,14 @@ export default function HomePage() {
                 profile={p}
                 onOpen={(id) => void openProfile(id)}
                 isActive={Boolean(activeProfiles[p.id])}
-                disabled={busy || !system?.venvExists}
+                disabled={busy || importingCookies || !system?.venvExists}
                 onEdit={(id) => { setEditId(id); setModalOpen(true); }}
                 onDelete={(id) => deleteProfile(id)}
                 onRotate={(id) => rotateProxy(id)}
                 onImportCookies={(id) => requestImportCookies(id)}
                 onExportCookies={(id) => exportCookies(id)}
+                selected={Boolean(selectedProfiles[p.id])}
+                onSelect={(id, selected) => toggleProfileSelection(id, selected)}
                 t={t}
               />
             ))}

@@ -34,6 +34,10 @@ export const es = {
     exportLogs: "Exportar logs",
     viewGrid: "Cuadrícula",
     viewList: "Lista",
+    select: "Seleccionar",
+    selectAll: "Seleccionar todo",
+    clearSelection: "Quitar selección",
+    deleteSelected: "Eliminar selección",
   },
   fields: {
     name: "Nombre",
@@ -75,6 +79,8 @@ export const es = {
     deleteTitle: "Eliminar perfil",
     deleteBody: "Esto borrará la sesión guardada de este perfil (cookies/storage).",
     clearWebshare: "¿Borrar la configuración de Webshare?",
+    deleteSelectedTitle: "Eliminar perfiles",
+    deleteSelectedBody: "Esto borrará {count} perfiles seleccionados (cookies/storage).",
   },
   messages: {
     profileCreated: "✅ Perfil creado",
@@ -94,6 +100,8 @@ export const es = {
     cookiesImported: "✅ Cookies importadas",
     cookiesExported: "✅ Cookies exportadas",
     cookiesInvalid: "El archivo debe contener un JSON con un array de cookies.",
+    cookiesImporting: "⏳ Importando cookies, espera un momento...",
+    profilesDeleted: "🗑️ Se eliminaron {count} perfiles",
     logCopied: "✅ Log copiado",
     logCopyFailed: "❌ No se pudo copiar el log",
     settingsSaved: "✅ Configuración guardada",
@@ -132,6 +140,7 @@ export const es = {
       "El proxy se asigna automáticamente cuando abres el perfil. Cada instancia recibe una IP aleatoria y no se repite entre perfiles activos.",
     wplaceTokenNote: "Pega solo el valor de la cookie (nombre: j). Los perfiles se crean automáticamente.",
     wplaceTokensCount: "{count} tokens detectados",
+    selectedCount: "{count} seleccionados",
   },
   access: {
     title: "Acceso requerido",

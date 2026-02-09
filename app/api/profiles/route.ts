@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { ProfileRepositorySqlite } from "../../../src/server/profileRepositorySqlite";
 import { listPublicProfiles } from "../../../src/server/profilePresenter";
@@ -9,6 +8,7 @@ import { LogRepository } from "../../../src/server/logRepository";
 import { AppPaths } from "../../../src/server/paths";
 import { PythonSetup } from "../../../src/server/pythonSetup";
 import { AppConfig } from "../../../src/server/appConfig";
+import { importProfileCookies } from "../../../src/server/cookiesIo";
 
 /**
  * GET /api/profiles
@@ -31,23 +31,6 @@ export async function GET() {
  *
  * @since 2026-01-23
  */
-function runCookieTool(action: "import" | "export", profileDir: string, input?: string): string {
-  const py = PythonSetup.python();
-  const args = [AppPaths.cookiesIoPy(), "--profile", profileDir, "--action", action];
-  const result = spawnSync(py, args, {
-    input,
-    encoding: "utf8",
-    maxBuffer: 20 * 1024 * 1024,
-  });
-
-  if (result.status !== 0) {
-    const err = (result.stderr || result.stdout || "").trim();
-    throw new Error(err || "Cookie import/export failed.");
-  }
-
-  return result.stdout || "";
-}
-
 function buildWplaceCookie(value: string) {
   return {
     name: "j",
@@ -55,8 +38,12 @@ function buildWplaceCookie(value: string) {
     domain: ".backend.wplace.live",
     path: "/",
     secure: true,
+    session: false,
+    storeId: "Default",
+    hostOnly: true,
     httpOnly: true,
     sameSite: "Strict",
+    expirationDate: 13416347070.628857,
   };
 }
 
@@ -111,7 +98,7 @@ export async function POST(req: Request) {
         const profileDir = path.join(AppPaths.profilesDir(), item.id);
         await mkdir(profileDir, { recursive: true });
         const cookies = [buildWplaceCookie(tokens[index])];
-        runCookieTool("import", profileDir, JSON.stringify(cookies));
+        importProfileCookies(profileDir, cookies);
       }));
 
       LogRepository.info("Wplace profiles created", { count: items.length });

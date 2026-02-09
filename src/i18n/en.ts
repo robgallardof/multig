@@ -34,6 +34,10 @@ export const en = {
     exportLogs: "Export logs",
     viewGrid: "Grid",
     viewList: "List",
+    select: "Select",
+    selectAll: "Select all",
+    clearSelection: "Clear selection",
+    deleteSelected: "Delete selected",
   },
   fields: {
     name: "Name",
@@ -75,6 +79,8 @@ export const en = {
     deleteTitle: "Delete profile",
     deleteBody: "This will delete the saved session for this profile (cookies/storage).",
     clearWebshare: "Clear Webshare configuration?",
+    deleteSelectedTitle: "Delete profiles",
+    deleteSelectedBody: "This will delete {count} selected profiles (cookies/storage).",
   },
   messages: {
     profileCreated: "✅ Profile created",
@@ -94,6 +100,8 @@ export const en = {
     cookiesImported: "✅ Cookies imported",
     cookiesExported: "✅ Cookies exported",
     cookiesInvalid: "The file must contain a JSON array of cookies.",
+    cookiesImporting: "⏳ Importing cookies, please wait...",
+    profilesDeleted: "🗑️ Deleted {count} profiles",
     logCopied: "✅ Log copied",
     logCopyFailed: "❌ Could not copy log",
     settingsSaved: "✅ Settings saved",
@@ -132,6 +140,7 @@ export const en = {
       "The proxy is assigned automatically when you open the profile. Each instance gets a random IP and it does not repeat among active profiles.",
     wplaceTokenNote: "Paste only the cookie value (name: j). Profiles are created automatically.",
     wplaceTokensCount: "{count} tokens detected",
+    selectedCount: "{count} selected",
   },
   access: {
     title: "Access required",

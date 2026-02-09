@@ -34,6 +34,8 @@ export type ProfileCardProps = {
   onDelete: (id: string) => void;
   onImportCookies: (id: string) => void;
   onExportCookies: (id: string) => void;
+  selected?: boolean;
+  onSelect?: (id: string, selected: boolean) => void;
   t: Translations;
 };
 
@@ -83,6 +85,17 @@ export function ProfileCard(props: ProfileCardProps) {
         </div>
 
         <div className="row cardActions">
+          {props.onSelect && (
+            <label className="selectBox" title={t.actions.select}>
+              <input
+                type="checkbox"
+                checked={Boolean(props.selected)}
+                onChange={(e) => props.onSelect?.(p.id, e.target.checked)}
+                aria-label={t.actions.select}
+              />
+              <span className="selectMark" />
+            </label>
+          )}
           <button className="btn secondary" onClick={() => props.onEdit(p.id)} title={t.actions.edit}>
             <EmojiIcon symbol="✏️" label="edit" size={16} />
           </button>
