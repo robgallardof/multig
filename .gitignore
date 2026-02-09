@@ -111,3 +111,6 @@ htmlcov/
 *.tmp
 *.bak
 *.old
+
+# Access tokens (managed remotely)
+data/access_tokens.json

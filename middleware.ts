@@ -3,13 +3,13 @@ import { isAccessTokenValid } from "./src/server/accessTokens";
 
 const ACCESS_PATH = "/access";
 
-function hasValidToken(request: NextRequest): boolean {
+async function hasValidToken(request: NextRequest): Promise<boolean> {
   const headerToken = request.headers.get("x-access-token");
   const cookieToken = request.cookies.get("multig_access_token")?.value;
   return isAccessTokenValid(headerToken || cookieToken);
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
@@ -21,7 +21,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (hasValidToken(request)) {
+  if (await hasValidToken(request)) {
     return NextResponse.next();
   }
 
