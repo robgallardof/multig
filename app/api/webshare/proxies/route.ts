@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { WebshareClient } from "../../../../src/server/webshareClient";
+import { LogRepository } from "../../../../src/server/logRepository";
 
 /**
  * GET /api/webshare/proxies
@@ -25,6 +26,7 @@ export async function GET(req: Request) {
     const data = await WebshareClient.listProxies(params);
     return NextResponse.json(data);
   } catch (e: any) {
+    LogRepository.error("Webshare proxies fetch failed", String(e?.message || e), { params });
     return NextResponse.json({ error: String(e?.message || e) }, { status: 400 });
   }
 }

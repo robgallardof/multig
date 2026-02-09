@@ -2,6 +2,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { AppPaths } from "./paths";
 import { PythonSetup } from "./pythonSetup";
+import { LogRepository } from "./logRepository";
 
 /**
  * Launches Camoufox via Python runner.
@@ -43,6 +44,27 @@ export class CamoufoxLauncher {
       stdio: "ignore",
       detached: true,
       windowsHide: false,
+    });
+
+    child.on("error", (err) => {
+      LogRepository.error("Camoufox process error", String(err?.message || err), {
+        profileId,
+        url,
+        pid: child.pid ?? null,
+      });
+    });
+
+    child.on("exit", (code, signal) => {
+      if (code === 0) {
+        LogRepository.info("Camoufox process exited", { profileId, url, pid: child.pid ?? null });
+        return;
+      }
+      LogRepository.error("Camoufox process exited unexpectedly", String(code ?? "unknown"), {
+        profileId,
+        url,
+        pid: child.pid ?? null,
+        signal: signal ?? null,
+      });
     });
 
     child.unref();
