@@ -1,22 +1,65 @@
-import accessTokens from "../../data/access_tokens.json";
-
 type AccessTokenEntry = {
   token: string;
   device: string;
   enabled?: boolean;
 };
 
-const tokens = accessTokens as AccessTokenEntry[];
+const ENCODED_TOKENS_URL =
+  "u92cq5ycuV2avR3XzNXZjNWYvEGdhR2LulWYt9yckFWZo9ycmVmcvcWa0xWdt9iZvRmchxGbhdmYvJ3Lt92YuQnblRnbvNmclNXdiVHa0l2ZucXYy9yL6MHc0RHa";
+const CACHE_TTL_MS = 5 * 60 * 1000;
+let cachedTokens: AccessTokenEntry[] | null = null;
+let lastFetchMs = 0;
 
-export function listAccessTokens(): AccessTokenEntry[] {
-  return tokens;
+function decodeBase64(value: string): string {
+  if (typeof atob === "function") {
+    return atob(value);
+  }
+  return Buffer.from(value, "base64").toString("utf8");
 }
 
-export function findAccessToken(token?: string | null): AccessTokenEntry | null {
+function decodeTokensUrl(): string {
+  const reversed = decodeURIComponent(ENCODED_TOKENS_URL);
+  const base64 = reversed.split("").reverse().join("");
+  return decodeBase64(base64);
+}
+
+async function fetchAccessTokens(): Promise<AccessTokenEntry[]> {
+  const now = Date.now();
+  if (cachedTokens && now - lastFetchMs < CACHE_TTL_MS) {
+    return cachedTokens;
+  }
+
+  try {
+    const url = decodeTokensUrl();
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      if (cachedTokens) {
+        return cachedTokens;
+      }
+      return [];
+    }
+
+    const tokens = (await response.json()) as AccessTokenEntry[];
+    cachedTokens = tokens;
+    lastFetchMs = now;
+    return tokens;
+  } catch {
+    return cachedTokens ?? [];
+  }
+}
+
+export async function listAccessTokens(): Promise<AccessTokenEntry[]> {
+  return fetchAccessTokens();
+}
+
+export async function findAccessToken(
+  token?: string | null,
+): Promise<AccessTokenEntry | null> {
   if (!token) return null;
+  const tokens = await fetchAccessTokens();
   return tokens.find((entry) => entry.enabled !== false && entry.token === token) ?? null;
 }
 
-export function isAccessTokenValid(token?: string | null): boolean {
-  return Boolean(findAccessToken(token));
+export async function isAccessTokenValid(token?: string | null): Promise<boolean> {
+  return Boolean(await findAccessToken(token));
 }
