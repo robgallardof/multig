@@ -5,7 +5,7 @@
  */
 export const en = {
   app: {
-    title: "Camoufox Session Manager",
+    title: "MultiG - by R. Gallardo",
     subtitle: "Persistent profiles (cookies/storage) with name and icon.",
     setupTitle: "Prepare environment",
     setupBody: "To open windows, install Camoufox in the Python environment first. You can do it here.",
@@ -27,6 +27,13 @@ export const en = {
     exportCookies: "Export cookies",
     copy: "Copy",
     clearFilters: "Clear filters",
+    show: "Show",
+    hide: "Hide",
+    addons: "Addons",
+    exportProfiles: "Export profiles",
+    exportLogs: "Export logs",
+    viewGrid: "Grid",
+    viewList: "List",
   },
   fields: {
     name: "Name",
@@ -44,6 +51,8 @@ export const en = {
     webshareUsernamePlaceholder: "Proxy username",
     websharePassword: "Password (optional)",
     websharePasswordPlaceholder: "Proxy password",
+    addonUrl: "Addon URL",
+    addonUrlPlaceholder: "https://addons.mozilla.org/.../latest.xpi",
   },
   status: {
     ready: "Ready",
@@ -84,6 +93,8 @@ export const en = {
     cookiesInvalid: "The file must contain a JSON array of cookies.",
     logCopied: "✅ Log copied",
     logCopyFailed: "❌ Could not copy log",
+    settingsSaved: "✅ Settings saved",
+    settingsSaveError: "❌ Could not save settings",
   },
   ui: {
     statusTitle: "Status",
@@ -108,8 +119,11 @@ export const en = {
     logsUpdated: "Updated: {time}",
     logsEmpty: "No logs yet.",
     logsCount: "{count} logs",
+    profileSearchPlaceholder: "Search profiles...",
+    addonHelper: "Paste the URL (XPI) of the addon you want to preload. Leave empty to keep Tampermonkey by default.",
+    avatarNote: "Avatars are generated automatically from the profile name.",
     webshareSecurityNote:
-      "Your token/credentials are stored only on the server and encrypted at rest. The UI never receives them back. " +
+      "Your token/credentials are stored in the database and encrypted at rest. You can reveal them on demand in this view. " +
       "IP assignment is automatic and random when opening each profile (no repeats among active instances).",
     autoProxyNote:
       "The proxy is assigned automatically when you open the profile. Each instance gets a random IP and it does not repeat among active profiles.",

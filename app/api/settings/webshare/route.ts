@@ -3,7 +3,7 @@ import { SettingsRepository } from "../../../../src/server/settingsRepository";
 import type { AppSettings } from "../../../../src/server/settingsTypes";
 
 /**
- * Returns a safe public view for the UI (no secrets).
+ * Returns the settings view for the UI.
  *
  * @since 2026-01-23
  */
@@ -20,13 +20,15 @@ function toPublic(settings: AppSettings) {
     maskedToken,
     hasCreds,
     username: settings.webshare?.username || "",
+    password: settings.webshare?.password || "",
+    token,
   };
 }
 
 /**
  * GET /api/settings/webshare
  *
- * Returns: { configured, hasToken, maskedToken, hasCreds, username }
+ * Returns: { configured, hasToken, maskedToken, hasCreds, username, password, token }
  *
  * @since 2026-01-23
  */
@@ -39,18 +41,23 @@ export async function GET() {
  * POST /api/settings/webshare
  *
  * Body: { token?: string, username?: string, password?: string }
- * - Empty values clear the field.
+ * - Empty values keep current values (use DELETE to clear).
  *
  * @since 2026-01-23
  */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { token?: string; username?: string; password?: string };
 
-  const token = (body.token || "").trim() || undefined;
-  const username = (body.username || "").trim() || undefined;
-  const password = (body.password || "").trim() || undefined;
-
   const settings = await SettingsRepository.load();
+  const current = settings.webshare || {};
+  const tokenInput = body.token;
+  const usernameInput = body.username;
+  const passwordInput = body.password;
+
+  const token = tokenInput === undefined ? current.token : (tokenInput.trim() || current.token);
+  const username = usernameInput === undefined ? current.username : (usernameInput.trim() || current.username);
+  const password = passwordInput === undefined ? current.password : (passwordInput.trim() || current.password);
+
   settings.webshare = {
     token,
     username,

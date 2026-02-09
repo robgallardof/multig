@@ -15,6 +15,8 @@ export type WebsharePublicStatus = {
   maskedToken: string;
   hasCreds: boolean;
   username: string;
+  password: string;
+  token: string;
 };
 
 /**
@@ -36,8 +38,8 @@ export type WebshareSettingsModalProps = {
  *
  * Security:
  * - Inputs are sent ONLY to server API.
- * - Server stores encrypted at rest.
- * - UI never receives secrets back.
+ * - Server stores encrypted at rest (database).
+ * - UI can display saved values on demand.
  *
  * @since 2026-01-23
  */
@@ -49,16 +51,20 @@ export function WebshareSettingsModal(props: WebshareSettingsModalProps) {
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState("");
   const [pool, setPool] = React.useState<{ total: number; available: number } | null>(null);
+  const [showToken, setShowToken] = React.useState(false);
+  const [showPassword, setShowPassword] = React.useState(false);
 
   React.useEffect(() => {
     setUsername(props.status?.username || "");
-    setToken("");
-    setPassword("");
+    setToken(props.status?.token || "");
+    setPassword(props.status?.password || "");
     setMsg("");
+    setShowToken(false);
+    setShowPassword(false);
     if (props.isOpen) {
       void loadPool();
     }
-  }, [props.isOpen, props.status?.username]);
+  }, [props.isOpen, props.status?.username, props.status?.token, props.status?.password]);
 
   if (!props.isOpen) return null;
 
@@ -170,7 +176,23 @@ export function WebshareSettingsModal(props: WebshareSettingsModalProps) {
         <label className="label">
           <span className="row"><EmojiIcon symbol="🔑" label="token" size={14} /> {t.fields.webshareToken}</span>
         </label>
-        <input className="input" value={token} onChange={(e) => setToken(e.target.value)} placeholder={t.fields.webshareTokenPlaceholder} />
+        <div className="row" style={{ gap: 8 }}>
+          <input
+            className="input"
+            type={showToken ? "text" : "password"}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder={t.fields.webshareTokenPlaceholder}
+          />
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={() => setShowToken((prev) => !prev)}
+            aria-label={showToken ? t.actions.hide : t.actions.show}
+          >
+            {showToken ? t.actions.hide : t.actions.show}
+          </button>
+        </div>
 
         <label className="label">
           <span className="row"><EmojiIcon symbol="👤" label="username" size={14} /> {t.fields.webshareUsername}</span>
@@ -180,7 +202,23 @@ export function WebshareSettingsModal(props: WebshareSettingsModalProps) {
         <label className="label">
           <span className="row"><EmojiIcon symbol="🔒" label="password" size={14} /> {t.fields.websharePassword}</span>
         </label>
-        <input className="input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t.fields.websharePasswordPlaceholder} />
+        <div className="row" style={{ gap: 8 }}>
+          <input
+            className="input"
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={t.fields.websharePasswordPlaceholder}
+          />
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={() => setShowPassword((prev) => !prev)}
+            aria-label={showPassword ? t.actions.hide : t.actions.show}
+          >
+            {showPassword ? t.actions.hide : t.actions.show}
+          </button>
+        </div>
 
         <div className="hr" />
 

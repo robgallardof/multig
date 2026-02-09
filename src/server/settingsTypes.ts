@@ -28,4 +28,6 @@ export type WebshareSettings = {
  */
 export type AppSettings = {
   webshare?: WebshareSettings;
+  language?: "es" | "en";
+  addonUrl?: string;
 };

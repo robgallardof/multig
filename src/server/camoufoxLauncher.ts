@@ -26,7 +26,8 @@ export class CamoufoxLauncher {
     proxyServer?: string,
     proxyUsername?: string,
     proxyPassword?: string,
-    config?: Record<string, unknown>
+    config?: Record<string, unknown>,
+    addonUrl?: string
   ): number {
     const py = PythonSetup.python();
 
@@ -38,6 +39,7 @@ export class CamoufoxLauncher {
     if (proxyUsername) args.push("--proxy-username", proxyUsername);
     if (proxyPassword) args.push("--proxy-password", proxyPassword);
     if (config) args.push("--config-json", JSON.stringify(config));
+    if (addonUrl) args.push("--addon-url", addonUrl);
 
     const child = spawn(py, args, {
       cwd: process.cwd(),

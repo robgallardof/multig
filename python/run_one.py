@@ -14,7 +14,14 @@ import argparse
 import json
 import os
 import sys
+import urllib.request
+import zipfile
+import hashlib
+from pathlib import Path
+from shutil import copyfile
 from camoufox.sync_api import Camoufox
+
+TAMPERMONKEY_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/tampermonkey/latest.xpi"
 
 
 def _parse_args() -> argparse.Namespace:
@@ -30,7 +37,55 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--proxy-username", required=False, help="Proxy username")
     p.add_argument("--proxy-password", required=False, help="Proxy password")
     p.add_argument("--config-json", required=False, help="JSON config for Camoufox fingerprint spoofing")
+    p.add_argument("--addon-url", required=False, help="Addon URL (XPI) to preload in the profile")
     return p.parse_args()
+
+
+def _data_dir() -> Path:
+    data_root = os.getenv("DATA_DIR", "data")
+    return Path(data_root).resolve()
+
+
+def _addon_cache_path(addon_url: str) -> Path:
+    digest = hashlib.sha256(addon_url.encode("utf-8")).hexdigest()[:12]
+    return _data_dir() / "addons" / f"addon-{digest}.xpi"
+
+
+def _download_addon(path: Path, url: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        return
+    tmp_path = path.with_suffix(".tmp")
+    with urllib.request.urlopen(url) as response:
+        tmp_path.write_bytes(response.read())
+    tmp_path.replace(path)
+
+
+def _addon_id_from_xpi(path: Path) -> str:
+    with zipfile.ZipFile(path, "r") as zf:
+        manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+    gecko = (
+        manifest.get("browser_specific_settings", {})
+        .get("gecko", {})
+        .get("id")
+    )
+    if gecko:
+        return gecko
+    legacy = manifest.get("applications", {}).get("gecko", {}).get("id")
+    if legacy:
+        return legacy
+    raise ValueError("Addon manifest missing Gecko ID.")
+
+
+def _ensure_addon(profile_dir: Path, addon_url: str) -> None:
+    addon_path = _addon_cache_path(addon_url)
+    _download_addon(addon_path, addon_url)
+    addon_id = _addon_id_from_xpi(addon_path)
+    extensions_dir = profile_dir / "extensions"
+    extensions_dir.mkdir(parents=True, exist_ok=True)
+    target = extensions_dir / f"{addon_id}.xpi"
+    if not target.exists():
+        copyfile(addon_path, target)
 
 
 def main() -> None:
@@ -63,9 +118,13 @@ def main() -> None:
     if sys.platform.startswith("linux") and not os.getenv("DISPLAY"):
         headless = "virtual"
 
+    profile_dir = Path(a.profile)
+    addon_url = (a.addon_url or "").strip() or TAMPERMONKEY_ADDON_URL
+    _ensure_addon(profile_dir, addon_url)
+
     with Camoufox(
         persistent_context=True,
-        user_data_dir=a.profile,
+        user_data_dir=str(profile_dir),
         headless=headless,
         proxy=proxy,
         **config,
