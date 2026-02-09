@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ProfileRepositorySqlite } from "../../../../src/server/profileRepositorySqlite";
+import { ProxyAssignmentService } from "../../../../src/server/proxyAssignmentService";
 import { listPublicProfiles } from "../../../../src/server/profilePresenter";
 import { LogRepository } from "../../../../src/server/logRepository";
 
@@ -13,7 +14,13 @@ import { LogRepository } from "../../../../src/server/logRepository";
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
-    const body = (await req.json().catch(() => ({}))) as { name?: string; icon?: string; url?: string | null; osType?: string };
+    const body = (await req.json().catch(() => ({}))) as {
+      name?: string;
+      icon?: string;
+      url?: string | null;
+      osType?: string;
+      useProxy?: boolean;
+    };
 
     const patch: any = {};
     if (typeof body.name === "string") patch.name = body.name.trim();
@@ -21,8 +28,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (body.url === null) patch.url = undefined;
     if (typeof body.url === "string") patch.url = body.url.trim() || undefined;
     if (body.osType === "windows" || body.osType === "mac" || body.osType === "linux") patch.osType = body.osType;
+    if (typeof body.useProxy === "boolean") patch.useProxy = body.useProxy;
 
     const profiles = ProfileRepositorySqlite.update(id, patch as any);
+    if (patch.useProxy === false) {
+      ProxyAssignmentService.release(id);
+    }
     LogRepository.info("Profile updated", { profileId: id });
     return NextResponse.json({ profiles: listPublicProfiles(profiles) });
   } catch (e: any) {

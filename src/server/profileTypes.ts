@@ -30,6 +30,11 @@ export type Profile = {
   osType?: "windows" | "mac" | "linux";
 
   /**
+   * Whether the profile should use a proxy.
+   */
+  useProxy?: boolean;
+
+  /**
    * ISO timestamp.
    */
   createdAt: string;

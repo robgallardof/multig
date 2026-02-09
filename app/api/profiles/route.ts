@@ -60,6 +60,7 @@ export async function POST(req: Request) {
       url?: string;
       osType?: string;
       tokens?: string[];
+      useProxy?: boolean;
     };
 
     if (body.mode === "wplace") {
@@ -83,12 +84,14 @@ export async function POST(req: Request) {
         ? body.osType
         : "windows";
       const createdAt = new Date().toISOString();
+      const useProxy = body.useProxy !== false;
       const items = tokens.map(() => ({
         id: crypto.randomUUID(),
         name: buildRandomName(),
         icon: "👤",
         url: "https://wplace.live",
         osType,
+        useProxy,
         createdAt,
       }));
 
@@ -112,6 +115,7 @@ export async function POST(req: Request) {
     const osType = body.osType === "mac" || body.osType === "linux" || body.osType === "windows"
       ? body.osType
       : "windows";
+    const useProxy = body.useProxy !== false;
 
     if (!name) {
       LogRepository.warn("Profile create missing name");
@@ -124,6 +128,7 @@ export async function POST(req: Request) {
       icon,
       url,
       osType,
+      useProxy,
       createdAt: new Date().toISOString(),
     };
 

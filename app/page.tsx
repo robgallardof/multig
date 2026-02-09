@@ -20,6 +20,7 @@ type ApiProfile = {
   icon: string;
   url?: string;
   osType?: "windows" | "mac" | "linux";
+  useProxy?: boolean;
   proxyServer?: string;
   proxyLabel?: string;
   proxyId?: string;
@@ -75,6 +76,7 @@ export default function HomePage() {
   const [selectedProfiles, setSelectedProfiles] = useState<Record<string, boolean>>({});
   const [importingCookies, setImportingCookies] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
   const t: Translations = useMemo(() => (language === "es" ? es : en), [language]);
 
@@ -85,6 +87,7 @@ export default function HomePage() {
       icon: p.icon,
       createdAt: p.createdAt,
       lastOpenedAt: p.lastOpenedAt,
+      useProxy: p.useProxy,
       hasProxy: p.hasProxy,
       proxyServer: p.proxyServer,
       proxyLabel: p.proxyLabel,
@@ -193,10 +196,23 @@ export default function HomePage() {
       return next;
     });
   }, [profiles]);
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
 
   function showToast(msg: string) {
     setToast(msg);
-    window.setTimeout(() => setToast(""), 3500);
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast("");
+      toastTimerRef.current = null;
+    }, 3500);
   }
 
   async function logClient(level: "info" | "warn" | "error", message: string, detail?: string, context?: Record<string, unknown>) {
@@ -258,7 +274,12 @@ export default function HomePage() {
         const r = await fetch("/api/profiles", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "wplace", tokens: values.wplace.tokens }),
+          body: JSON.stringify({
+            mode: "wplace",
+            tokens: values.wplace.tokens,
+            osType: values.osType,
+            useProxy: values.useProxy,
+          }),
         });
         if (!r.ok) throw new Error(await r.text());
         const j = await safeJson<ApiProfilesResponse>(r);
@@ -431,6 +452,11 @@ export default function HomePage() {
   }
 
   async function rotateProxy(id: string) {
+    const profile = profiles.find(p => p.id === id);
+    if (profile?.useProxy === false) {
+      showToast(t.messages.proxyDisabled);
+      return;
+    }
     setBusy(true);
     try {
       const r = await fetch(`/api/profiles/${encodeURIComponent(id)}/assign-proxy`, {
@@ -860,6 +886,7 @@ export default function HomePage() {
           icon: editing?.icon || "👤",
           url: editing?.url || "",
           osType: editing?.osType || "windows",
+          useProxy: editing?.useProxy ?? true,
         }}
         allowWplace={Boolean(system?.wplaceEnabled)}
         onClose={() => setModalOpen(false)}

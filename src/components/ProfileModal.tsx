@@ -21,6 +21,7 @@ export type ProfileModalValues = {
   icon: string;
   url?: string;
   osType: "windows" | "mac" | "linux";
+  useProxy: boolean;
   wplace?: {
     enabled: boolean;
     tokens: string[];
@@ -56,6 +57,7 @@ export function ProfileModal(props: ProfileModalProps) {
   const [icon, setIcon] = React.useState(props.initial.icon);
   const [url, setUrl] = React.useState(props.initial.url || "");
   const [osType, setOsType] = React.useState(props.initial.osType);
+  const [useProxy, setUseProxy] = React.useState(props.initial.useProxy);
   const [wplaceEnabled, setWplaceEnabled] = React.useState(false);
   const [wplaceTokens, setWplaceTokens] = React.useState("");
 
@@ -64,9 +66,10 @@ export function ProfileModal(props: ProfileModalProps) {
     setIcon(props.initial.icon);
     setUrl(props.initial.url || "");
     setOsType(props.initial.osType);
+    setUseProxy(props.initial.useProxy);
     setWplaceEnabled(false);
     setWplaceTokens("");
-  }, [props.initial.name, props.initial.icon, props.initial.url, props.initial.osType, props.isOpen]);
+  }, [props.initial.name, props.initial.icon, props.initial.url, props.initial.osType, props.initial.useProxy, props.isOpen]);
 
   if (!props.isOpen) return null;
 
@@ -149,9 +152,23 @@ export function ProfileModal(props: ProfileModalProps) {
           <option value="mac">{t.fields.osMac}</option>
           <option value="linux">{t.fields.osLinux}</option>
         </select>
+        <div className="toggleRow" style={{ marginTop: 12 }}>
+          <span className="toggleLabelText">{t.fields.useProxy}</span>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={useProxy}
+              onChange={(e) => setUseProxy(e.target.checked)}
+              aria-label={t.fields.useProxy}
+            />
+            <span className="toggleTrack">
+              <span className="toggleThumb" />
+            </span>
+          </label>
+        </div>
         <div className="card" style={{ marginTop: 12 }}>
           <p className="small" style={{ margin: 0 }}>
-            {t.ui.autoProxyNote}
+            {useProxy ? t.ui.autoProxyNote : t.ui.noProxyNote}
           </p>
         </div>
 
@@ -159,17 +176,18 @@ export function ProfileModal(props: ProfileModalProps) {
           <button className="btn secondary" onClick={props.onClose}>
             {t.actions.cancel}
           </button>
-          <button
-            className="btn"
-            onClick={() => props.onSubmit({
-              name: name.trim(),
-              icon,
-              url: url.trim() || undefined,
-              osType,
-              wplace: props.mode === "create" && wplaceEnabled
-                ? { enabled: true, tokens: tokenList }
-                : undefined,
-            })}
+            <button
+              className="btn"
+              onClick={() => props.onSubmit({
+                name: name.trim(),
+                icon,
+                url: url.trim() || undefined,
+                osType,
+                useProxy,
+                wplace: props.mode === "create" && wplaceEnabled
+                  ? { enabled: true, tokens: tokenList }
+                  : undefined,
+              })}
             disabled={!canSave}
             style={{ opacity: canSave ? 1 : 0.6 }}
           >

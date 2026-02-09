@@ -21,13 +21,15 @@ export type PublicProfile = Profile & {
 export function toPublicProfile(profile: Profile): PublicProfile {
   const assigned = ProxyAssignmentService.getAssigned(profile.id);
   const proxyServer = assigned ? `http://${assigned.host}:${assigned.port}` : undefined;
+  const proxyEnabled = profile.useProxy !== false;
 
   return {
     ...profile,
-    hasProxy: !!assigned,
-    proxyId: assigned?.id,
-    proxyLabel: assigned?.label,
-    proxyServer,
+    useProxy: proxyEnabled,
+    hasProxy: proxyEnabled && !!assigned,
+    proxyId: proxyEnabled ? assigned?.id : undefined,
+    proxyLabel: proxyEnabled ? assigned?.label : undefined,
+    proxyServer: proxyEnabled ? proxyServer : undefined,
   };
 }
 

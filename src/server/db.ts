@@ -50,6 +50,7 @@ export class Db {
         icon TEXT NOT NULL,
         url TEXT NULL,
         osType TEXT NULL,
+        useProxy INTEGER NOT NULL DEFAULT 1,
         proxyServer TEXT NULL,
         proxyUsername TEXT NULL,
         proxyPassword TEXT NULL,
@@ -103,6 +104,9 @@ export class Db {
 
     if (!hasColumn("profiles", "osType")) {
       db.exec("ALTER TABLE profiles ADD COLUMN osType TEXT NULL");
+    }
+    if (!hasColumn("profiles", "useProxy")) {
+      db.exec("ALTER TABLE profiles ADD COLUMN useProxy INTEGER NOT NULL DEFAULT 1");
     }
 
     if (!hasColumn("proxies", "countryCode")) {

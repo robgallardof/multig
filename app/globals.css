@@ -49,6 +49,14 @@ a{color:inherit}
   white-space:normal;
   line-height:1.2;
 }
+.btn:disabled{
+  cursor:not-allowed;
+  opacity:.6;
+  box-shadow:none;
+}
+.btn.secondary:disabled{
+  border-color:rgba(34,197,94,.2);
+}
 .btn.secondary{
   background:transparent;color:var(--text);
   border:1px solid var(--border);
