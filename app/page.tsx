@@ -96,22 +96,40 @@ export default function HomePage() {
   async function loadProxyStatus() {
     try {
       const p = await fetch("/api/proxies/status", { cache: "no-store" });
+      if (!p.ok) throw new Error(await p.text());
       setProxyStatus(await safeJson<ApiProxyStatus>(p));
-    } catch {
+    } catch (e: any) {
       setProxyStatus(null);
+      void logClient("error", "Proxy status load failed", String(e?.message || e));
     }
   }
 
   async function loadAll() {
-    const r = await fetch("/api/profiles", { cache: "no-store" });
-    const j = await safeJson<ApiProfilesResponse>(r);
-    setProfiles(j.profiles || []);
+    try {
+      const r = await fetch("/api/profiles", { cache: "no-store" });
+      if (!r.ok) throw new Error(await r.text());
+      const j = await safeJson<ApiProfilesResponse>(r);
+      setProfiles(j.profiles || []);
+    } catch (e: any) {
+      void logClient("error", "Profiles load failed", String(e?.message || e));
+    }
 
-    const s = await fetch("/api/system/status", { cache: "no-store" });
-    setSystem(await safeJson<ApiSystemStatus>(s));
+    try {
+      const s = await fetch("/api/system/status", { cache: "no-store" });
+      if (!s.ok) throw new Error(await s.text());
+      setSystem(await safeJson<ApiSystemStatus>(s));
+    } catch (e: any) {
+      void logClient("error", "System status load failed", String(e?.message || e));
+    }
 
-    const w = await fetch("/api/settings/webshare", { cache: "no-store" });
-    setWebshare(await safeJson<WebsharePublicStatus>(w));
+    try {
+      const w = await fetch("/api/settings/webshare", { cache: "no-store" });
+      if (!w.ok) throw new Error(await w.text());
+      setWebshare(await safeJson<WebsharePublicStatus>(w));
+    } catch (e: any) {
+      void logClient("error", "Webshare settings load failed", String(e?.message || e));
+    }
+
     await loadProxyStatus();
   }
 

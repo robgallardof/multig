@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ProxyAssignmentService } from "../../../../../src/server/proxyAssignmentService";
 import { ProfileRepositorySqlite } from "../../../../../src/server/profileRepositorySqlite";
 import { listPublicProfiles } from "../../../../../src/server/profilePresenter";
+import { LogRepository } from "../../../../../src/server/logRepository";
 
 /**
  * POST /api/profiles/:id/release-proxy
@@ -16,6 +17,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     const profiles = ProfileRepositorySqlite.list();
     return NextResponse.json({ profiles: listPublicProfiles(profiles) });
   } catch (e: any) {
+    LogRepository.error("Proxy release failed", String(e?.message || e), { profileId: id });
     return NextResponse.json({ error: String(e?.message || e) }, { status: 400 });
   }
 }
