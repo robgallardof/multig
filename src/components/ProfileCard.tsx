@@ -32,6 +32,8 @@ export type ProfileCardProps = {
   disabled?: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onImportCookies: (id: string) => void;
+  onExportCookies: (id: string) => void;
   t: Translations;
 };
 
@@ -69,7 +71,7 @@ export function ProfileCard(props: ProfileCardProps) {
           </div>
         </div>
 
-        <div className="row">
+        <div className="row cardActions">
           <button className="btn secondary" onClick={() => props.onEdit(p.id)} title={t.actions.edit}>
             <EmojiIcon symbol="✏️" label="edit" size={16} />
           </button>
@@ -83,6 +85,15 @@ export function ProfileCard(props: ProfileCardProps) {
       </div>
 
       <div className="spacer" />
+
+      <div className="row cardCookieActions">
+        <button className="btn secondary" onClick={() => props.onImportCookies(p.id)} title={t.actions.importCookies}>
+          <span className="row"><EmojiIcon symbol="📥" label="import cookies" size={16} />{t.actions.importCookies}</span>
+        </button>
+        <button className="btn secondary" onClick={() => props.onExportCookies(p.id)} title={t.actions.exportCookies}>
+          <span className="row"><EmojiIcon symbol="📤" label="export cookies" size={16} />{t.actions.exportCookies}</span>
+        </button>
+      </div>
 
       <div className="toggleRow">
         <span className="toggleLabelText">

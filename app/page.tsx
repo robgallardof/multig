@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { en, es } from "../src/i18n";
 import type { Translations } from "../src/i18n";
 import { WebshareSettingsModal, type WebsharePublicStatus } from "../src/components/WebshareSettingsModal";
@@ -49,6 +49,8 @@ export default function HomePage() {
   const [toast, setToast] = useState<string>("");
   const [activeProfiles, setActiveProfiles] = useState<Record<string, boolean>>({});
   const [language, setLanguage] = useState<"es" | "en">("es");
+  const [cookieImportProfileId, setCookieImportProfileId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const t: Translations = useMemo(() => (language === "es" ? es : en), [language]);
 
@@ -203,6 +205,77 @@ export default function HomePage() {
     }
   }
 
+  function requestImportCookies(id: string) {
+    if (!system?.venvExists) {
+      showToast(t.messages.setupRequired);
+      return;
+    }
+    setCookieImportProfileId(id);
+    fileInputRef.current?.click();
+  }
+
+  async function handleCookieFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    const profileId = cookieImportProfileId;
+    if (!file || !profileId) return;
+
+    setBusy(true);
+    try {
+      const text = await file.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new Error(t.messages.cookiesInvalid);
+      }
+      if (!Array.isArray(parsed)) throw new Error(t.messages.cookiesInvalid);
+
+      const r = await fetch(`/api/profiles/${encodeURIComponent(profileId)}/cookies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cookies: parsed }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      showToast(t.messages.cookiesImported);
+    } catch (e: any) {
+      showToast(`❌ ${String(e?.message || e)}`);
+    } finally {
+      setBusy(false);
+      setCookieImportProfileId(null);
+    }
+  }
+
+  async function exportCookies(id: string) {
+    if (!system?.venvExists) {
+      showToast(t.messages.setupRequired);
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/profiles/${encodeURIComponent(id)}/cookies`, { cache: "no-store" });
+      if (!r.ok) throw new Error(await r.text());
+      const j = await safeJson<{ cookies: unknown[] }>(r);
+      const profile = profiles.find(p => p.id === id);
+      const name = (profile?.name || id).replace(/[^a-z0-9-_]+/gi, "-").toLowerCase();
+      const blob = new Blob([JSON.stringify(j.cookies || [], null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${name || "profile"}-cookies.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast(t.messages.cookiesExported);
+    } catch (e: any) {
+      showToast(`❌ ${String(e?.message || e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function rotateProxy(id: string) {
     setBusy(true);
     try {
@@ -332,6 +405,8 @@ export default function HomePage() {
             onEdit={(id) => { setEditId(id); setModalOpen(true); }}
             onDelete={(id) => deleteProfile(id)}
             onRotate={(id) => rotateProxy(id)}
+            onImportCookies={(id) => requestImportCookies(id)}
+            onExportCookies={(id) => exportCookies(id)}
             t={t}
           />
         ))}
@@ -369,6 +444,14 @@ export default function HomePage() {
           else void createProfile(values);
         }}
         t={t}
+      />
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json"
+        style={{ display: "none" }}
+        onChange={handleCookieFileChange}
       />
     
 <WebshareSettingsModal

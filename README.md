@@ -7,6 +7,10 @@ Gestor moderno de **perfiles persistentes** (sesiones) para Camoufox:
 - i18n español
 - Backend en Next API que lanza Camoufox vía Python
 
+## Sesiones (mantener login)
+El objetivo principal es **conservar sesiones**: si te logueas en una web dentro de un perfil, el login queda guardado
+porque la sesión vive en la carpeta `profiles/<id>/` (cookies + storage). Mientras abras ese mismo perfil, sigues logueado.
+
 ## Branding
 © 2026 robertogallardo.dev  
 Development by robertogallardo
