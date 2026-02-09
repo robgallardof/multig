@@ -101,6 +101,36 @@ def _wplace_marker(profile_dir: Path) -> Path:
     return profile_dir / ".wplace_userscript_installed"
 
 
+def _read_env_flag(value: str) -> bool:
+    if not value:
+        return False
+    return value.strip().lower() in {"1", "true", "yes"}
+
+
+def _wplace_storage_payload() -> str | None:
+    if not _read_env_flag(os.getenv("WPLACE_ENABLED", "")):
+        return None
+    raw = os.getenv("WPLACE_WBOT_STORAGE", "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return json.dumps(parsed)
+
+
+def _inject_wplace_storage(ctx: Camoufox, page) -> None:
+    payload = _wplace_storage_payload()
+    if not payload:
+        return
+    try:
+        page.goto("https://wplace.live", wait_until="domcontentloaded")
+        page.evaluate("value => localStorage.setItem('wbot', value)", payload)
+    except Exception:
+        pass
+
+
 def _install_wplace_script(ctx: Camoufox, profile_dir: Path) -> None:
     marker = _wplace_marker(profile_dir)
     if marker.exists():
@@ -163,6 +193,7 @@ def main() -> None:
     ) as ctx:
         _install_wplace_script(ctx, profile_dir)
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        _inject_wplace_storage(ctx, page)
         page.goto(a.url)
         try:
             page.evaluate(

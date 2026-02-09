@@ -30,7 +30,7 @@ type ApiProfile = {
 };
 
 type ApiProfilesResponse = { profiles: ApiProfile[]; createdId?: string; createdIds?: string[] };
-type ApiSystemStatus = { venvExists: boolean; wplaceEnabled?: boolean };
+  type ApiSystemStatus = { venvExists: boolean; wplaceEnabled?: boolean };
 type ApiProxyStatus = { total: number; available: number };
 type ApiLogEntry = {
   id: number;
@@ -62,10 +62,16 @@ export default function HomePage() {
   const [activeProfiles, setActiveProfiles] = useState<Record<string, boolean>>({});
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
+  const [wplaceBotConfigured, setWplaceBotConfigured] = useState(false);
+  const [wplaceBotUploading, setWplaceBotUploading] = useState(false);
   const [cookieImportProfileId, setCookieImportProfileId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"profiles" | "logs">("profiles");
   const [profileSearch, setProfileSearch] = useState("");
-  const [profileView, setProfileView] = useState<"grid" | "list">("grid");
+  const [profileView, setProfileView] = useState<"grid" | "list" | "details">("grid");
+  const [profileStatusFilter, setProfileStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [profileProxyFilter, setProfileProxyFilter] = useState<"all" | "assigned" | "pending" | "disabled">("all");
+  const [profilePrefsLoaded, setProfilePrefsLoaded] = useState(false);
+  const [activeProfilesLoaded, setActiveProfilesLoaded] = useState(false);
   const [logs, setLogs] = useState<ApiLogEntry[]>([]);
   const [logLevel, setLogLevel] = useState<"all" | "info" | "warn" | "error">("all");
   const [logSearch, setLogSearch] = useState("");
@@ -76,6 +82,7 @@ export default function HomePage() {
   const [selectedProfiles, setSelectedProfiles] = useState<Record<string, boolean>>({});
   const [importingCookies, setImportingCookies] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const wplaceFileInputRef = useRef<HTMLInputElement | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
   const t: Translations = useMemo(() => (language === "es" ? es : en), [language]);
@@ -91,6 +98,8 @@ export default function HomePage() {
       hasProxy: p.hasProxy,
       proxyServer: p.proxyServer,
       proxyLabel: p.proxyLabel,
+      url: p.url,
+      osType: p.osType,
     })),
     [profiles]
   );
@@ -120,10 +129,16 @@ export default function HomePage() {
     try {
       const r = await fetch("/api/settings/app", { cache: "no-store" });
       if (!r.ok) throw new Error(await r.text());
-      const j = await safeJson<{ language: "es" | "en"; addonUrl?: string; defaultUrl?: string }>(r);
+      const j = await safeJson<{
+        language: "es" | "en";
+        addonUrl?: string;
+        defaultUrl?: string;
+        wplaceBotConfigured?: boolean;
+      }>(r);
       setLanguage(j.language === "en" ? "en" : "es");
       setAddonUrl(j.addonUrl || "");
       setDefaultUrl(j.defaultUrl || "https://www.robertogallardo.dev");
+      setWplaceBotConfigured(Boolean(j.wplaceBotConfigured));
       setAppSettingsLoaded(true);
     } catch (e: any) {
       void logClient("error", "App settings load failed", String(e?.message || e));
@@ -162,6 +177,42 @@ export default function HomePage() {
 
   useEffect(() => { void loadAll(); }, []);
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.localStorage.getItem("multig.profilePrefs");
+    if (!raw) {
+      setProfilePrefsLoaded(true);
+      return;
+    }
+    try {
+      const prefs = JSON.parse(raw) as Partial<{
+        profileView: "grid" | "list" | "details";
+        profileSearch: string;
+        profileStatusFilter: "all" | "active" | "inactive";
+        profileProxyFilter: "all" | "assigned" | "pending" | "disabled";
+      }>;
+      if (prefs.profileView) setProfileView(prefs.profileView);
+      if (prefs.profileSearch) setProfileSearch(prefs.profileSearch);
+      if (prefs.profileStatusFilter) setProfileStatusFilter(prefs.profileStatusFilter);
+      if (prefs.profileProxyFilter) setProfileProxyFilter(prefs.profileProxyFilter);
+    } catch {
+      // ignore invalid stored preferences
+    } finally {
+      setProfilePrefsLoaded(true);
+    }
+  }, []);
+  useEffect(() => {
+    if (!profilePrefsLoaded || typeof window === "undefined") return;
+    window.localStorage.setItem(
+      "multig.profilePrefs",
+      JSON.stringify({
+        profileView,
+        profileSearch,
+        profileStatusFilter,
+        profileProxyFilter,
+      })
+    );
+  }, [profileView, profileSearch, profileStatusFilter, profileProxyFilter, profilePrefsLoaded]);
+  useEffect(() => {
     if (!appSettingsLoaded) return;
     void (async () => {
       try {
@@ -187,6 +238,28 @@ export default function HomePage() {
       return next;
     });
   }, [profiles]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.localStorage.getItem("multig.activeProfiles");
+    if (!raw) {
+      setActiveProfilesLoaded(true);
+      return;
+    }
+    try {
+      const stored = JSON.parse(raw) as Record<string, boolean>;
+      if (stored && typeof stored === "object") {
+        setActiveProfiles(stored);
+      }
+    } catch {
+      // ignore invalid stored active profiles
+    } finally {
+      setActiveProfilesLoaded(true);
+    }
+  }, []);
+  useEffect(() => {
+    if (!activeProfilesLoaded || typeof window === "undefined") return;
+    window.localStorage.setItem("multig.activeProfiles", JSON.stringify(activeProfiles));
+  }, [activeProfiles, activeProfilesLoaded]);
   useEffect(() => {
     setSelectedProfiles((prev) => {
       const next: Record<string, boolean> = {};
@@ -376,6 +449,28 @@ export default function HomePage() {
     }
   }
 
+  async function stopProfile(id: string) {
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/profiles/${encodeURIComponent(id)}/release-proxy`, { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      const j = await safeJson<ApiProfilesResponse>(r);
+      setProfiles(j.profiles || []);
+      setActiveProfiles((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      showToast(t.messages.profileStopped);
+      await loadProxyStatus();
+    } catch (e: any) {
+      showToast(`❌ ${String(e?.message || e)}`);
+      void logClient("error", "Profile stop failed", String(e?.message || e), { id });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function requestImportCookies(id: string) {
     if (!system?.venvExists) {
       showToast(t.messages.setupRequired);
@@ -417,6 +512,122 @@ export default function HomePage() {
       setBusy(false);
       setImportingCookies(false);
       setCookieImportProfileId(null);
+    }
+  }
+
+  async function buildWplaceStoragePayload(dataUrl: string) {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(t.messages.wplaceImageInvalid));
+      img.src = dataUrl;
+    });
+
+    return JSON.stringify({
+      version: 2,
+      strategy: "SEQUENTIAL",
+      images: [
+        {
+          pixels: {
+            url: dataUrl,
+            width: image.naturalWidth || 1000,
+            brightness: 0,
+            exactColor: false,
+          },
+          position: [0, 0],
+          strategy: "SPIRAL_FROM_CENTER",
+          opacity: 50,
+          drawTransparentPixels: false,
+          drawColorsInOrder: false,
+          colors: [],
+          lock: false,
+        },
+      ],
+    });
+  }
+
+  function normalizeWplaceStoragePayload(raw: string) {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new Error(t.messages.wplaceFileInvalid);
+    }
+    if (!parsed || typeof parsed !== "object") {
+      throw new Error(t.messages.wplaceFileInvalid);
+    }
+    if (Array.isArray(parsed.images)) {
+      return JSON.stringify({
+        version: typeof parsed.version === "number" ? parsed.version : 2,
+        strategy: typeof parsed.strategy === "string" ? parsed.strategy : "SEQUENTIAL",
+        images: parsed.images,
+      });
+    }
+    if (parsed.pixels) {
+      return JSON.stringify({
+        version: 2,
+        strategy: "SEQUENTIAL",
+        images: [parsed],
+      });
+    }
+    throw new Error(t.messages.wplaceFileInvalid);
+  }
+
+  async function handleWplaceImageChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setWplaceBotUploading(true);
+    try {
+      const isWbot = file.name.toLowerCase().endsWith(".wbot");
+      let storagePayload: string;
+      if (isWbot) {
+        const text = await file.text();
+        storagePayload = normalizeWplaceStoragePayload(text);
+      } else {
+        const reader = new FileReader();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(String(reader.result || ""));
+          reader.onerror = () => reject(new Error("Failed to read image"));
+          reader.readAsDataURL(file);
+        });
+        if (!dataUrl.startsWith("data:image/")) {
+          throw new Error(t.messages.wplaceImageInvalid);
+        }
+        storagePayload = await buildWplaceStoragePayload(dataUrl);
+      }
+      const r = await fetch("/api/settings/app", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wplaceBotStorage: storagePayload }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      setWplaceBotConfigured(true);
+      showToast(t.messages.wplaceImageSaved);
+    } catch (err: any) {
+      showToast(`❌ ${String(err?.message || err)}`);
+      void logClient("error", "Wplace bot image upload failed", String(err?.message || err));
+    } finally {
+      setWplaceBotUploading(false);
+    }
+  }
+
+  async function clearWplaceImage() {
+    setWplaceBotUploading(true);
+    try {
+      const r = await fetch("/api/settings/app", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wplaceBotStorage: null }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      setWplaceBotConfigured(false);
+      showToast(t.messages.wplaceImageCleared);
+    } catch (err: any) {
+      showToast(`❌ ${String(err?.message || err)}`);
+      void logClient("error", "Wplace bot image clear failed", String(err?.message || err));
+    } finally {
+      setWplaceBotUploading(false);
     }
   }
 
@@ -591,9 +802,28 @@ export default function HomePage() {
 
   const editing = editId ? profiles.find(x => x.id === editId) : null;
   const profileSearchLower = profileSearch.trim().toLowerCase();
-  const filteredProfiles = profileSearchLower
-    ? vms.filter((p) => p.name.toLowerCase().includes(profileSearchLower))
-    : vms;
+  const sortedProfiles = useMemo(() => (
+    [...vms].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  ), [vms]);
+  const filteredProfiles = useMemo(() => {
+    let next = sortedProfiles;
+    if (profileSearchLower) {
+      next = next.filter((p) => p.name.toLowerCase().includes(profileSearchLower));
+    }
+    if (profileStatusFilter !== "all") {
+      next = next.filter((p) => profileStatusFilter === "active"
+        ? Boolean(activeProfiles[p.id])
+        : !activeProfiles[p.id]);
+    }
+    if (profileProxyFilter !== "all") {
+      next = next.filter((p) => {
+        if (profileProxyFilter === "disabled") return p.useProxy === false;
+        if (profileProxyFilter === "assigned") return p.useProxy !== false && p.hasProxy;
+        return p.useProxy !== false && !p.hasProxy;
+      });
+    }
+    return next;
+  }, [sortedProfiles, profileSearchLower, profileStatusFilter, profileProxyFilter, activeProfiles]);
   const selectedCount = Object.keys(selectedProfiles).filter((id) => selectedProfiles[id]).length;
 
   return (
@@ -641,6 +871,32 @@ export default function HomePage() {
           >
             <span className="row"><EmojiIcon symbol="▶️" label="open all" size={16} />{t.actions.openAll}</span>
           </button>
+
+          {system?.wplaceEnabled && (
+            <div className="row">
+              <button
+                className="btn secondary"
+                onClick={() => wplaceFileInputRef.current?.click()}
+                disabled={wplaceBotUploading}
+                title={t.actions.uploadWplaceImage}
+              >
+                <span className="row">
+                  <EmojiIcon symbol="🖼️" label="upload" size={16} />
+                  {wplaceBotConfigured ? t.actions.replaceWplaceImage : t.actions.uploadWplaceImage}
+                </span>
+              </button>
+              {wplaceBotConfigured && (
+                <button
+                  className="btn secondary"
+                  onClick={() => void clearWplaceImage()}
+                  disabled={wplaceBotUploading}
+                  title={t.actions.clearWplaceImage}
+                >
+                  <span className="row"><EmojiIcon symbol="🧹" label="clear" size={16} />{t.actions.clearWplaceImage}</span>
+                </button>
+              )}
+            </div>
+          )}
 
           <button className="btn" onClick={() => { setEditId(null); setModalOpen(true); }} disabled={busy}>
             <span className="row"><EmojiIcon symbol="➕" label="create" size={16} />{t.actions.create}</span>
@@ -712,7 +968,36 @@ export default function HomePage() {
                 placeholder={t.ui.profileSearchPlaceholder}
                 style={{ minWidth: 240 }}
               />
-              <button className="btn secondary" onClick={() => setProfileSearch("")} disabled={!profileSearch}>
+              <select
+                className="select"
+                value={profileStatusFilter}
+                onChange={(e) => setProfileStatusFilter(e.target.value as typeof profileStatusFilter)}
+                aria-label={t.ui.profileStatusFilterLabel}
+              >
+                <option value="all">{t.ui.profileStatusAll}</option>
+                <option value="active">{t.ui.profileStatusActive}</option>
+                <option value="inactive">{t.ui.profileStatusInactive}</option>
+              </select>
+              <select
+                className="select"
+                value={profileProxyFilter}
+                onChange={(e) => setProfileProxyFilter(e.target.value as typeof profileProxyFilter)}
+                aria-label={t.ui.profileProxyFilterLabel}
+              >
+                <option value="all">{t.ui.profileProxyAll}</option>
+                <option value="assigned">{t.ui.profileProxyAssigned}</option>
+                <option value="pending">{t.ui.profileProxyPending}</option>
+                <option value="disabled">{t.ui.profileProxyDisabled}</option>
+              </select>
+              <button
+                className="btn secondary"
+                onClick={() => {
+                  setProfileSearch("");
+                  setProfileStatusFilter("all");
+                  setProfileProxyFilter("all");
+                }}
+                disabled={!profileSearch && profileStatusFilter === "all" && profileProxyFilter === "all"}
+              >
                 {t.actions.clearFilters}
               </button>
             </div>
@@ -728,6 +1013,12 @@ export default function HomePage() {
                 onClick={() => setProfileView("list")}
               >
                 {t.actions.viewList}
+              </button>
+              <button
+                className={`btn secondary ${profileView === "details" ? "activeBtn" : ""}`}
+                onClick={() => setProfileView("details")}
+              >
+                {t.actions.viewDetails}
               </button>
               <button className="btn secondary" onClick={() => void exportProfiles()} disabled={profiles.length === 0}>
                 {t.actions.exportProfiles}
@@ -746,12 +1037,13 @@ export default function HomePage() {
               </span>
             </div>
           </div>
-          <div className={`grid profilesGrid ${profileView === "list" ? "list" : ""}`}>
+          <div className={`grid profilesGrid ${profileView === "list" ? "list" : ""} ${profileView === "details" ? "details" : ""}`}>
             {filteredProfiles.map((p) => (
               <ProfileCard
                 key={p.id}
                 profile={p}
                 onOpen={(id) => void openProfile(id)}
+                onStop={(id) => void stopProfile(id)}
                 isActive={Boolean(activeProfiles[p.id])}
                 disabled={busy || importingCookies || !system?.venvExists}
                 onEdit={(id) => { setEditId(id); setModalOpen(true); }}
@@ -759,6 +1051,7 @@ export default function HomePage() {
                 onRotate={(id) => rotateProxy(id)}
                 onImportCookies={(id) => requestImportCookies(id)}
                 onExportCookies={(id) => exportCookies(id)}
+                view={profileView}
                 selected={Boolean(selectedProfiles[p.id])}
                 onSelect={(id, selected) => toggleProfileSelection(id, selected)}
                 t={t}
@@ -904,6 +1197,13 @@ export default function HomePage() {
         accept="application/json"
         style={{ display: "none" }}
         onChange={handleCookieFileChange}
+      />
+      <input
+        ref={wplaceFileInputRef}
+        type="file"
+        accept="image/*,.wbot"
+        style={{ display: "none" }}
+        onChange={handleWplaceImageChange}
       />
 
       <WebshareSettingsModal
