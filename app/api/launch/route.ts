@@ -37,33 +37,38 @@ export async function POST(req: Request) {
 
   try {
     const settings = await SettingsRepository.load();
-    let assigned = ProxyAssignmentService.getAssigned(id);
+    const proxyEnabled = profile.useProxy !== false;
+    let assigned = proxyEnabled ? ProxyAssignmentService.getAssigned(id) : null;
 
-    if (proxyId && assigned?.id !== proxyId) {
-      try {
-        ProxyAssignmentService.assign(id, proxyId);
-        assigned = ProxyAssignmentService.getAssigned(id);
-      } catch (e: any) {
-        LogRepository.error("Proxy assignment failed", String(e?.message || e), { profileId: id, proxyId });
-        return NextResponse.json({ error: String(e?.message || e) }, { status: 400 });
+    if (!proxyEnabled) {
+      ProxyAssignmentService.release(id);
+    } else {
+      if (proxyId && assigned?.id !== proxyId) {
+        try {
+          ProxyAssignmentService.assign(id, proxyId);
+          assigned = ProxyAssignmentService.getAssigned(id);
+        } catch (e: any) {
+          LogRepository.error("Proxy assignment failed", String(e?.message || e), { profileId: id, proxyId });
+          return NextResponse.json({ error: String(e?.message || e) }, { status: 400 });
+        }
       }
-    }
 
-    if (!assigned) {
-      try {
-        assigned = ProxyAssignmentService.assignRandom(id);
-      } catch (e: any) {
-        if (settings.webshare?.token) {
-          try {
-            await WebshareSyncService.sync();
-            assigned = ProxyAssignmentService.assignRandom(id);
-          } catch (syncError: any) {
-            LogRepository.error(
-              "Proxy sync failed while launching profile",
-              String(syncError?.message || syncError),
-              { profileId: id }
-            );
-            assigned = null;
+      if (!assigned) {
+        try {
+          assigned = ProxyAssignmentService.assignRandom(id);
+        } catch (e: any) {
+          if (settings.webshare?.token) {
+            try {
+              await WebshareSyncService.sync();
+              assigned = ProxyAssignmentService.assignRandom(id);
+            } catch (syncError: any) {
+              LogRepository.error(
+                "Proxy sync failed while launching profile",
+                String(syncError?.message || syncError),
+                { profileId: id }
+              );
+              assigned = null;
+            }
           }
         }
       }

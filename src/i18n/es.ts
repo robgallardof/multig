@@ -60,6 +60,7 @@ export const es = {
     wplaceMode: "Wplace",
     wplaceTokens: "Tokens de Wplace (uno por línea)",
     wplaceTokensPlaceholder: "Pega cada valor de token en su propia línea o separado por comas",
+    useProxy: "Usar proxy",
   },
   status: {
     ready: "Listo",
@@ -72,6 +73,7 @@ export const es = {
     webshareNotConfigured: "No configurado",
     proxyAssigned: "Proxy asignado",
     proxyPending: "Se asigna al abrir",
+    proxyDisabled: "Proxy desactivado",
     proxiesAvailable: "Proxies libres",
     proxyPool: "Pool de proxies",
   },
@@ -97,6 +99,7 @@ export const es = {
     webshareSaveError: "❌ Error al guardar",
     webshareDeleteError: "❌ Error al borrar",
     webshareSyncError: "❌ Error al sincronizar proxies",
+    proxyDisabled: "🚫 El proxy está desactivado para este perfil",
     cookiesImported: "✅ Cookies importadas",
     cookiesExported: "✅ Cookies exportadas",
     cookiesInvalid: "El archivo debe contener un JSON con un array de cookies.",
@@ -138,6 +141,7 @@ export const es = {
       "La asignación de IP es automática y aleatoria al abrir cada perfil (sin repetirse entre instancias activas).",
     autoProxyNote:
       "El proxy se asigna automáticamente cuando abres el perfil. Cada instancia recibe una IP aleatoria y no se repite entre perfiles activos.",
+    noProxyNote: "Este perfil se abrirá sin proxy.",
     wplaceTokenNote: "Pega solo el valor de la cookie (nombre: j). Los perfiles se crean automáticamente.",
     wplaceTokensCount: "{count} tokens detectados",
     selectedCount: "{count} seleccionados",

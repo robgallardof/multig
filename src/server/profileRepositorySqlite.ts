@@ -43,14 +43,15 @@ export class ProfileRepositorySqlite {
     const osType = input.osType ?? "windows";
 
     db.prepare(`
-      INSERT INTO profiles (id, name, icon, url, osType, proxyServer, proxyUsername, proxyPassword, createdAt, lastOpenedAt)
-      VALUES (@id, @name, @icon, @url, @osType, @proxyServer, @proxyUsername, @proxyPassword, @createdAt, @lastOpenedAt)
+      INSERT INTO profiles (id, name, icon, url, osType, useProxy, proxyServer, proxyUsername, proxyPassword, createdAt, lastOpenedAt)
+      VALUES (@id, @name, @icon, @url, @osType, @useProxy, @proxyServer, @proxyUsername, @proxyPassword, @createdAt, @lastOpenedAt)
     `).run({
       id,
       name: input.name,
       icon: input.icon,
       url: input.url ?? null,
       osType,
+      useProxy: input.useProxy === false ? 0 : 1,
       proxyServer: null,
       proxyUsername: null,
       proxyPassword: null,
@@ -70,8 +71,8 @@ export class ProfileRepositorySqlite {
     if (inputs.length === 0) return ProfileRepositorySqlite.list();
     const db = Db.get();
     const stmt = db.prepare(`
-      INSERT INTO profiles (id, name, icon, url, osType, proxyServer, proxyUsername, proxyPassword, createdAt, lastOpenedAt)
-      VALUES (@id, @name, @icon, @url, @osType, @proxyServer, @proxyUsername, @proxyPassword, @createdAt, @lastOpenedAt)
+      INSERT INTO profiles (id, name, icon, url, osType, useProxy, proxyServer, proxyUsername, proxyPassword, createdAt, lastOpenedAt)
+      VALUES (@id, @name, @icon, @url, @osType, @useProxy, @proxyServer, @proxyUsername, @proxyPassword, @createdAt, @lastOpenedAt)
     `);
     const insert = db.transaction((rows: Array<Omit<Profile, "id"> & { id?: string }>) => {
       for (const row of rows) {
@@ -83,6 +84,7 @@ export class ProfileRepositorySqlite {
           icon: row.icon,
           url: row.url ?? null,
           osType,
+          useProxy: row.useProxy === false ? 0 : 1,
           proxyServer: null,
           proxyUsername: null,
           proxyPassword: null,
@@ -110,7 +112,7 @@ export class ProfileRepositorySqlite {
 
     db.prepare(`
       UPDATE profiles
-      SET name=@name, icon=@icon, url=@url, osType=@osType,
+      SET name=@name, icon=@icon, url=@url, osType=@osType, useProxy=@useProxy,
           proxyServer=NULL, proxyUsername=NULL, proxyPassword=NULL,
           createdAt=@createdAt, lastOpenedAt=@lastOpenedAt
       WHERE id=@id
@@ -120,6 +122,7 @@ export class ProfileRepositorySqlite {
       icon: next.icon,
       url: next.url ?? null,
       osType: next.osType ?? "windows",
+      useProxy: next.useProxy === false ? 0 : 1,
       createdAt: next.createdAt,
       lastOpenedAt: next.lastOpenedAt ?? null,
     });
@@ -145,6 +148,7 @@ export class ProfileRepositorySqlite {
       icon: String(r.icon),
       url: r.url ? String(r.url) : undefined,
       osType: r.osType ? String(r.osType) as Profile["osType"] : "windows",
+      useProxy: typeof r.useProxy === "number" ? r.useProxy === 1 : r.useProxy !== false,
       createdAt: String(r.createdAt),
       lastOpenedAt: r.lastOpenedAt ? String(r.lastOpenedAt) : undefined,
     };

@@ -14,6 +14,7 @@ export type ProfileVm = {
   icon: string;
   createdAt: string;
   lastOpenedAt?: string;
+  useProxy?: boolean;
   hasProxy?: boolean;
   proxyServer?: string;
   proxyLabel?: string;
@@ -76,9 +77,11 @@ export function ProfileCard(props: ProfileCardProps) {
                 {last ? last : t.status.neverOpened}
               </span>
               <span className="badge" style={{marginLeft:8}}>
-                {p.hasProxy
-                  ? `🛡️ ${p.proxyLabel || p.proxyServer || t.status.proxyAssigned}`
-                  : `🌐 ${t.status.proxyPending}`}
+                {p.useProxy === false
+                  ? `🚫 ${t.status.proxyDisabled}`
+                  : p.hasProxy
+                    ? `🛡️ ${p.proxyLabel || p.proxyServer || t.status.proxyAssigned}`
+                    : `🌐 ${t.status.proxyPending}`}
               </span>
             </div>
           </div>
@@ -99,7 +102,12 @@ export function ProfileCard(props: ProfileCardProps) {
           <button className="btn secondary" onClick={() => props.onEdit(p.id)} title={t.actions.edit}>
             <EmojiIcon symbol="✏️" label="edit" size={16} />
           </button>
-          <button className="btn secondary" onClick={() => props.onRotate(p.id)} title={t.actions.rotateIp}>
+          <button
+            className="btn secondary"
+            onClick={() => props.onRotate(p.id)}
+            title={t.actions.rotateIp}
+            disabled={p.useProxy === false}
+          >
             <EmojiIcon symbol="🔀" label="rotate" size={16} />
           </button>
           <button className="btn danger" onClick={() => props.onDelete(p.id)} title={t.actions.delete}>

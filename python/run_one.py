@@ -165,6 +165,12 @@ def main() -> None:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         page.goto(a.url)
         try:
+            page.evaluate(
+                "(() => { window.moveTo(0, 0); window.resizeTo(screen.availWidth, screen.availHeight); })()"
+            )
+        except Exception:
+            pass
+        try:
             ctx.wait_for_event("close")
         except Exception:
             while True:

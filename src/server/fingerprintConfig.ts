@@ -67,6 +67,11 @@ export function buildCamoufoxOptions(profile: Profile, proxy?: ProxyMeta) {
     devtools: AppConfig.devtoolsEnabled,
     firefox_user_prefs: {
       "browser.privatebrowsing.autostart": false,
+      "browser.tabs.autoHide": false,
+      "browser.tabs.closeWindowWithLastTab": false,
+      "browser.tabs.warnOnClose": false,
+      "browser.tabs.warnOnCloseOtherTabs": false,
+      "dom.disable_window_move_resize": false,
       "extensions.autoDisableScopes": 0,
       "extensions.enabledScopes": 15,
       "extensions.sideloading.enabled": true,

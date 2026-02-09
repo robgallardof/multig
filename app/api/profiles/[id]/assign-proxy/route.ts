@@ -16,6 +16,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const proxyId = String(body.proxyId || "").trim();
 
   try {
+    const profile = ProfileRepositorySqlite.getById(id);
+    if (!profile) {
+      return NextResponse.json({ error: "profile not found" }, { status: 404 });
+    }
+    if (profile.useProxy === false) {
+      return NextResponse.json({ error: "proxy disabled for profile" }, { status: 400 });
+    }
     if (proxyId) {
       ProxyAssignmentService.assign(id, proxyId);
     } else {
