@@ -288,6 +288,48 @@ def _open_tampermonkey_editor(page, uuid: str) -> bool:
     return False
 
 
+def _dismiss_tampermonkey_banners(page) -> None:
+    script = """() => {
+        const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
+
+        const clickIfPresent = (doc, selectors) => {
+            for (const sel of selectors) {
+                const el = doc.querySelector(sel);
+                if (!el) continue;
+                try {
+                    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }));
+                    if (typeof el.click === 'function') el.click();
+                    return true;
+                } catch (_) {
+                    continue;
+                }
+            }
+            return false;
+        };
+
+        for (const doc of docs) {
+            clickIfPresent(doc, [
+                '#button_Z2xvYmFsaGludF9iX2Rpc2FibGVfc3RhdHM',
+                '#span_Z2hfY2xvc2Vfc3RhdHM',
+                '#button_Z2xvYmFsaGludF9iX2VuYWJsZV9zdGF0cw',
+            ]);
+
+            clickIfPresent(doc, [
+                '.header + button.close[title*="Close" i]',
+                '.tampermonkeyBot button.close',
+                'button.close[title*="Close" i]',
+                '.clickable.disable',
+            ]);
+        }
+    }"""
+
+    for _ in range(3):
+        try:
+            page.evaluate(script)
+            page.wait_for_timeout(150)
+        except Exception:
+            return
+
 def _editor_content_matches(page, expected: str) -> bool:
     check_script = """([selector, expected]) => {
         const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
@@ -314,6 +356,36 @@ def _editor_content_matches(page, expected: str) -> bool:
         return False
 
 
+def _focus_editor_with_tab_navigation(page, max_tabs: int = 12) -> bool:
+    """Fallback for Tampermonkey screens where tabbing reaches CodeMirror reliably."""
+    check_focus_script = """() => {
+        const active = document.activeElement;
+        if (!active) return false;
+
+        const isCodeMirrorTextarea =
+            active.tagName === 'TEXTAREA' &&
+            (active.closest('.CodeMirror') || active.className.includes('CodeMirror'));
+
+        const isInsideCodeMirror = Boolean(active.closest && active.closest('.CodeMirror'));
+        return Boolean(isCodeMirrorTextarea || isInsideCodeMirror);
+    }"""
+
+    try:
+        page.keyboard.press('Home')
+    except Exception:
+        pass
+
+    for _ in range(max_tabs):
+        try:
+            page.keyboard.press('Tab')
+            page.wait_for_timeout(100)
+            if bool(page.evaluate(check_focus_script)):
+                return True
+        except Exception:
+            return False
+
+    return False
+
 def _set_tampermonkey_editor_code(page, code: str) -> bool:
     normalized = code.replace("\r\n", "\n")
 
@@ -337,19 +409,42 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
             return true;
         };
 
+        const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+
         for (const doc of docs) {
             const container = doc.querySelector(selector) || doc;
-            const cmEl = container.querySelector('.CodeMirror') || doc.querySelector('.CodeMirror');
-            const cm = cmEl?.CodeMirror || null;
-            if (setCodeMirrorValue(cm, code)) {
-                return true;
+            const cmCandidates = [];
+
+            for (const cmEl of Array.from(container.querySelectorAll('.CodeMirror, .CodeMirror-wrap, .CodeMirror-focused'))) {
+                if (cmEl?.CodeMirror) cmCandidates.push(cmEl.CodeMirror);
+            }
+            for (const cmEl of Array.from(doc.querySelectorAll('.CodeMirror'))) {
+                if (cmEl?.CodeMirror) cmCandidates.push(cmEl.CodeMirror);
             }
 
-            const ta = container.querySelector('textarea') || doc.querySelector('textarea');
-            if (ta) {
+            const maybeEditor = [doc.defaultView?.editor, doc.defaultView?.Editor, doc.defaultView?.tmEditor];
+            for (const candidate of maybeEditor) {
+                if (candidate && typeof candidate.getValue === 'function') cmCandidates.push(candidate);
+            }
+
+            for (const cm of cmCandidates) {
+                if (setCodeMirrorValue(cm, code)) {
+                    return true;
+                }
+            }
+
+            const ta =
+                container.querySelector('.CodeMirror textarea') ||
+                container.querySelector('textarea') ||
+                doc.querySelector('.CodeMirror textarea') ||
+                doc.querySelector('textarea');
+
+            if (ta && nativeValueSetter) {
                 ta.focus();
-                ta.value = code;
-                ta.dispatchEvent(new InputEvent('input', { bubbles: true, data: code, inputType: 'insertText' }));
+                nativeValueSetter.call(ta, code);
+                ta.dispatchEvent(new Event('input', { bubbles: true }));
+                ta.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, data: code, inputType: 'insertFromPaste' }));
+                ta.dispatchEvent(new InputEvent('input', { bubbles: true, data: code, inputType: 'insertFromPaste' }));
                 ta.dispatchEvent(new Event('change', { bubbles: true }));
                 return true;
             }
@@ -383,6 +478,22 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
     except Exception:
         pass
 
+    # Accessibility/focus fallback: tab into editor (commonly ~6 tabs in TM UI).
+    try:
+        if _focus_editor_with_tab_navigation(page, max_tabs=12):
+            for shortcut in ("Control+A", "Meta+A"):
+                try:
+                    page.keyboard.press(shortcut)
+                except Exception:
+                    continue
+            page.keyboard.press("Delete")
+            page.keyboard.insert_text(normalized)
+            page.wait_for_timeout(300)
+            if _editor_content_matches(page, normalized):
+                return True
+    except Exception:
+        pass
+
     return pasted
 
 
@@ -396,10 +507,13 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
     if not _open_tampermonkey_editor(page, uuid):
         return False
 
+    _dismiss_tampermonkey_banners(page)
+
     code = script_path.read_text(encoding="utf-8", errors="ignore")
 
     pasted = False
     for _ in range(3):
+        _dismiss_tampermonkey_banners(page)
         pasted = _set_tampermonkey_editor_code(page, code)
         if pasted:
             break
@@ -413,12 +527,44 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
     except Exception:
         pass
 
+    _dismiss_tampermonkey_banners(page)
+
     for shortcut in ("Control+S", "Meta+S"):
         try:
             page.keyboard.press(shortcut)
             page.wait_for_timeout(250)
         except Exception:
             continue
+
+    try:
+        page.evaluate(
+            """() => {
+                const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
+                const selectors = [
+                    'button[id*=save i]',
+                    'input[type="button"][id*=save i]',
+                    'input[type="submit"][id*=save i]',
+                    'button[class*=save i]',
+                    'a[class*=save i]',
+                    '.save',
+                    '[data-command="save"]',
+                    '[title*="Save" i]',
+                    '[title*="Guardar" i]',
+                ];
+                for (const doc of docs) {
+                    for (const sel of selectors) {
+                        const el = doc.querySelector(sel);
+                        if (!el) continue;
+                        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }));
+                        if (typeof el.click === 'function') el.click();
+                        return true;
+                    }
+                }
+                return false;
+            }"""
+        )
+    except Exception:
+        pass
 
     try:
         page.get_by_role("button", name=re.compile(r"(Save|Guardar)", re.I)).click(timeout=2000)
