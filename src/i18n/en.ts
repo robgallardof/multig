@@ -165,6 +165,12 @@ export const en = {
     wplaceTokenNote: "Paste only the cookie value (name: j). Profiles are created automatically.",
     wplaceTokensCount: "{count} tokens detected",
     selectedCount: "{count} selected",
+    statusCreatingProfile: "Creating profile...",
+    statusUpdatingProfile: "Updating profile...",
+    statusDeletingProfile: "Deleting profile...",
+    statusOpeningProfile: "Opening instance...",
+    statusStoppingProfile: "Stopping instance...",
+    statusRunningSetup: "Preparing environment...",
   },
   access: {
     title: "Access required",
