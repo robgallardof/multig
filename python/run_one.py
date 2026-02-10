@@ -337,19 +337,42 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
             return true;
         };
 
+        const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+
         for (const doc of docs) {
             const container = doc.querySelector(selector) || doc;
-            const cmEl = container.querySelector('.CodeMirror') || doc.querySelector('.CodeMirror');
-            const cm = cmEl?.CodeMirror || null;
-            if (setCodeMirrorValue(cm, code)) {
-                return true;
+            const cmCandidates = [];
+
+            for (const cmEl of Array.from(container.querySelectorAll('.CodeMirror, .CodeMirror-wrap, .CodeMirror-focused'))) {
+                if (cmEl?.CodeMirror) cmCandidates.push(cmEl.CodeMirror);
+            }
+            for (const cmEl of Array.from(doc.querySelectorAll('.CodeMirror'))) {
+                if (cmEl?.CodeMirror) cmCandidates.push(cmEl.CodeMirror);
             }
 
-            const ta = container.querySelector('textarea') || doc.querySelector('textarea');
-            if (ta) {
+            const maybeEditor = [doc.defaultView?.editor, doc.defaultView?.Editor, doc.defaultView?.tmEditor];
+            for (const candidate of maybeEditor) {
+                if (candidate && typeof candidate.getValue === 'function') cmCandidates.push(candidate);
+            }
+
+            for (const cm of cmCandidates) {
+                if (setCodeMirrorValue(cm, code)) {
+                    return true;
+                }
+            }
+
+            const ta =
+                container.querySelector('.CodeMirror textarea') ||
+                container.querySelector('textarea') ||
+                doc.querySelector('.CodeMirror textarea') ||
+                doc.querySelector('textarea');
+
+            if (ta && nativeValueSetter) {
                 ta.focus();
-                ta.value = code;
-                ta.dispatchEvent(new InputEvent('input', { bubbles: true, data: code, inputType: 'insertText' }));
+                nativeValueSetter.call(ta, code);
+                ta.dispatchEvent(new Event('input', { bubbles: true }));
+                ta.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, data: code, inputType: 'insertFromPaste' }));
+                ta.dispatchEvent(new InputEvent('input', { bubbles: true, data: code, inputType: 'insertFromPaste' }));
                 ta.dispatchEvent(new Event('change', { bubbles: true }));
                 return true;
             }
@@ -419,6 +442,36 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
             page.wait_for_timeout(250)
         except Exception:
             continue
+
+    try:
+        page.evaluate(
+            """() => {
+                const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
+                const selectors = [
+                    'button[id*=save i]',
+                    'input[type="button"][id*=save i]',
+                    'input[type="submit"][id*=save i]',
+                    'button[class*=save i]',
+                    'a[class*=save i]',
+                    '.save',
+                    '[data-command="save"]',
+                    '[title*="Save" i]',
+                    '[title*="Guardar" i]',
+                ];
+                for (const doc of docs) {
+                    for (const sel of selectors) {
+                        const el = doc.querySelector(sel);
+                        if (!el) continue;
+                        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }));
+                        if (typeof el.click === 'function') el.click();
+                        return true;
+                    }
+                }
+                return false;
+            }"""
+        )
+    except Exception:
+        pass
 
     try:
         page.get_by_role("button", name=re.compile(r"(Save|Guardar)", re.I)).click(timeout=2000)
