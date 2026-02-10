@@ -30,6 +30,13 @@ WPLACE_SCRIPT_DEFAULT = (
 )
 
 
+TAMPERMONKEY_EDITOR_ANCHORS = (
+    "options.html#nav=new-user-script+editor",
+    "options.html#nav=new-user-script%2Beditor",
+)
+TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR = "#td_bmV3LXVzZXItc2NyaXB0X2VkaXQ"
+
+
 def _normalize_github_raw_url(url: str) -> str:
     value = (url or "").strip()
     if not value:
@@ -160,39 +167,7 @@ def _normalize_userscript_url(url: str) -> str:
     value = (url or "").strip()
     if not value:
         return ""
-
-    # Allow values copied from Tampermonkey install pages.
-    # Keep unwrapping until we reach the real userscript URL.
-    for _ in range(5):
-        if "tampermonkey.net/script_installation.php" not in value:
-            break
-        parsed = urllib.parse.urlsplit(value)
-        encoded = ""
-        if parsed.fragment.startswith("url="):
-            encoded = parsed.fragment[len("url=") :].strip()
-        if not encoded:
-            query_url = urllib.parse.parse_qs(parsed.query).get("url")
-            if query_url:
-                encoded = query_url[0].strip()
-        if not encoded:
-            return ""
-        decoded = urllib.parse.unquote(encoded).strip()
-        if not decoded or decoded == value:
-            break
-        value = decoded
-
-    if "tampermonkey.net/script_installation.php" in value:
-        return ""
-
     return _normalize_github_raw_url(value)
-
-
-def _tampermonkey_install_url(raw_script_url: str) -> str:
-    target = _normalize_userscript_url(raw_script_url)
-    if not target:
-        return ""
-    encoded = urllib.parse.quote(target, safe=":/%")
-    return f"https://www.tampermonkey.net/script_installation.php#url={encoded}"
 
 
 def _wplace_script_url() -> str:
@@ -288,60 +263,79 @@ def _get_webext_uuid(profile_dir: Path, addon_id: str) -> str | None:
     return value
 
 
+def _open_tampermonkey_editor(page, uuid: str) -> bool:
+    for route in TAMPERMONKEY_EDITOR_ANCHORS:
+        try:
+            page.goto(f"moz-extension://{uuid}/{route}", wait_until="domcontentloaded")
+            page.wait_for_timeout(900)
+            has_editor = bool(
+                page.evaluate(
+                    """(selector) => {
+                        const container = document.querySelector(selector);
+                        if (!container) return false;
+                        return Boolean(
+                            container.querySelector('.CodeMirror') ||
+                            container.querySelector('textarea')
+                        );
+                    }""",
+                    TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR,
+                )
+            )
+            if has_editor:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _set_tampermonkey_editor_code(page, code: str) -> bool:
+    try:
+        return bool(
+            page.evaluate(
+                """([selector, code]) => {
+                    const container = document.querySelector(selector) || document;
+                    const candidates = [
+                        container.querySelector('.CodeMirror'),
+                        document.querySelector('.CodeMirror'),
+                    ].filter(Boolean);
+
+                    for (const cmEl of candidates) {
+                        if (cmEl && cmEl.CodeMirror) {
+                            cmEl.CodeMirror.setValue(code);
+                            cmEl.CodeMirror.focus();
+                            return true;
+                        }
+                    }
+
+                    const textarea = container.querySelector('textarea') || document.querySelector('textarea');
+                    if (textarea) {
+                        textarea.value = code;
+                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+                        return true;
+                    }
+                    return false;
+                }""",
+                [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, code],
+            )
+        )
+    except Exception:
+        return False
+
+
 def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_path: Path) -> bool:
     addon_id = "firefox@tampermonkey.net"
     uuid = _get_webext_uuid(profile_dir, addon_id)
     if not uuid:
         return False
 
-    dash_url = f"moz-extension://{uuid}/options.html"
     page = ctx.pages[0] if ctx.pages else ctx.new_page()
-    try:
-        page.goto(dash_url, wait_until="domcontentloaded")
-    except Exception:
+    if not _open_tampermonkey_editor(page, uuid):
         return False
-    page.wait_for_timeout(1200)
 
-    try:
-        page.get_by_role(
-            "button",
-            name=re.compile(r"(Add a new script|Add new script|Añadir un nuevo script|Nuevo script)", re.I),
-        ).click(timeout=4000)
-    except Exception:
-        try:
-            page.get_by_text(
-                re.compile(r"(Add a new script|Add new script|Añadir un nuevo script|Nuevo script)", re.I)
-            ).click(timeout=4000)
-        except Exception:
-            return False
-
-    page.wait_for_timeout(800)
     code = script_path.read_text(encoding="utf-8", errors="ignore")
 
-    pasted = False
-    try:
-        textarea = page.locator("textarea").first
-        textarea.wait_for(state="visible", timeout=3000)
-        textarea.fill(code)
-        pasted = True
-    except Exception:
-        pass
-
-    if not pasted:
-        try:
-            pasted = bool(
-                page.evaluate(
-                    """(code) => {
-                        const cmEl = document.querySelector('.CodeMirror');
-                        if (!cmEl || !cmEl.CodeMirror) return false;
-                        cmEl.CodeMirror.setValue(code);
-                        return true;
-                    }""",
-                    code,
-                )
-            )
-        except Exception:
-            pasted = False
+    pasted = _set_tampermonkey_editor_code(page, code)
 
     if not pasted:
         return False
@@ -360,112 +354,6 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
     return True
 
 
-def _click_install_button(page, timeout_ms: int = 8000) -> bool:
-    try:
-        button = page.get_by_role(
-            "button",
-            name=re.compile(r"^(Install|Reinstall|Confirm|Confirm installation|Instalar|Reinstalar|Confirmar)$", re.I),
-        )
-        button.first.wait_for(state="visible", timeout=timeout_ms)
-        button.first.click()
-        return True
-    except Exception:
-        pass
-    try:
-        candidates = page.locator("input[type='submit'], button, a")
-        count = candidates.count()
-        for idx in range(count):
-            el = candidates.nth(idx)
-            label = (el.inner_text() or "").strip().lower()
-            if not label:
-                label = (el.get_attribute("value") or "").strip().lower()
-            if label and any(word in label for word in ("install", "reinstall", "confirm", "instalar", "confirmar")):
-                el.click()
-                return True
-    except Exception:
-        return False
-    return False
-
-
-def _wait_install_success(page, timeout_ms: int = 6000) -> bool:
-    try:
-        page.get_by_text(re.compile(r"(installed|reinstall|instalado|reinstalar)", re.I)).wait_for(
-            state="visible",
-            timeout=timeout_ms,
-        )
-        return True
-    except Exception:
-        return False
-
-
-def _attempt_install(ctx: Camoufox, page, install_url: str) -> bool:
-    try:
-        page.goto(install_url, wait_until="domcontentloaded")
-        if not _click_install_button(page):
-            return False
-        confirmed = False
-        try:
-            new_page = ctx.wait_for_event("page", timeout=4000)
-        except Exception:
-            new_page = None
-        if new_page:
-            confirmed = _click_install_button(new_page, timeout_ms=10000)
-            new_page.wait_for_timeout(1000)
-            success_new_page = _wait_install_success(new_page, timeout_ms=4000)
-            if success_new_page:
-                confirmed = True
-            try:
-                new_page.close()
-            except Exception:
-                pass
-        if _wait_install_success(page, timeout_ms=4000):
-            return True
-        return confirmed
-    except Exception:
-        return False
-
-
-def _attempt_install_with_retries(ctx: Camoufox, page, install_url: str, retries: int = 3) -> bool:
-    if not install_url:
-        return False
-    for _ in range(max(1, retries)):
-        if _attempt_install(ctx, page, install_url):
-            return True
-        page.wait_for_timeout(1200)
-    return False
-
-
-def _candidate_install_urls(script_url: str, local_script: Path | None) -> list[str]:
-    urls: list[str] = []
-
-    # 1) Direct userscript URL (en Camoufox esto puede disparar Tampermonkey mejor que
-    # la landing de script_installation.php en algunos entornos).
-    normalized_script = _normalize_userscript_url(script_url)
-    if normalized_script:
-        urls.append(normalized_script)
-
-    # 2) URL oficial de instalación de Tampermonkey.
-    wrapped_url = _tampermonkey_install_url(script_url)
-    if wrapped_url:
-        urls.append(wrapped_url)
-
-    # 3) Fallback local al archivo .user.js descargado en el perfil.
-    if local_script:
-        urls.append(local_script.as_uri())
-        local_wrapped = _tampermonkey_install_url(local_script.as_uri())
-        if local_wrapped:
-            urls.append(local_wrapped)
-
-    seen = set()
-    deduped: list[str] = []
-    for url in urls:
-        if url in seen:
-            continue
-        seen.add(url)
-        deduped.append(url)
-    return deduped
-
-
 def _close_secondary_pages(ctx: Camoufox, keep_page) -> None:
     for page in list(ctx.pages):
         if page == keep_page:
@@ -480,25 +368,17 @@ def _install_wplace_script(ctx: Camoufox, profile_dir: Path, page) -> None:
     marker = _wplace_marker(profile_dir)
     if marker.exists():
         return
-    script_url = _wplace_script_url()
     _close_tampermonkey_welcome(ctx)
     page.wait_for_timeout(1500)
 
-    # Preferred deterministic path: download script content and paste it
-    # directly in Tampermonkey dashboard (no user interaction required).
+    # Deterministic path: download script content and paste it
+    # directly in Tampermonkey editor.
     local_script = _download_userscript(profile_dir)
     success = bool(local_script and local_script.exists()) and _install_userscript_via_dashboard(
         ctx,
         profile_dir,
         local_script,
     )
-
-    # Keep URL-based install as fallback only.
-    if not success:
-        for install_url in _candidate_install_urls(script_url, local_script):
-            success = _attempt_install_with_retries(ctx, page, install_url)
-            if success:
-                break
 
     page.wait_for_timeout(1500)
     if success:

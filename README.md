@@ -93,20 +93,18 @@ La app queda disponible (por defecto) en `http://localhost:3000`.
 
 ## Tampermonkey / userscript (caso Camoufox)
 
-Esta app prepara el perfil con Tampermonkey y luego intenta instalar el userscript Wplace.
+Esta app prepara el perfil con Tampermonkey y luego instala el userscript Wplace abriendo directamente el editor de nuevo script.
 
-Orden de intentos de instalación (implementado para mejorar compatibilidad en Camoufox):
+Ruta usada para entrar al editor:
 
-1. Abrir URL directa del `.user.js`.
-2. Abrir `tampermonkey.net/script_installation.php#url=...`.
-3. Fallback a copia local `file://.../wplace-bot.user.js`.
-4. Fallback adicional con `script_installation.php#url=file://...`.
+- `moz-extension://<tampermonkey-uuid>/options.html#nav=new-user-script+editor` (ejemplo real: `moz-extension://a5ddac59-dbda-4c24-9d95-eed108317527/options.html#nav=new-user-script+editor`)
+- `moz-extension://<tampermonkey-uuid>/options.html#nav=new-user-script%2Beditor` (fallback)
 
-Esto existe porque en algunos entornos Camoufox la landing de `script_installation.php` no siempre dispara la extensión de forma confiable.
+En ese editor se pega el contenido de `wplace-bot.user.js` y se guarda con `Ctrl+S`.
 
 Variables útiles:
 
-- `WPLACE_TAMPERMONKEY_SCRIPT_URL`: URL del userscript (acepta URL directa o enlace de instalación de Tampermonkey).
+- `WPLACE_TAMPERMONKEY_SCRIPT_URL`: URL del userscript (URL directa al `.user.js`).
 - `WPLACE_ENABLED`: habilita inyección de storage de Wplace (`1/true/yes`).
 - `WPLACE_WBOT_STORAGE`: JSON serializado para guardar en `localStorage['wbot']`.
 
@@ -165,7 +163,7 @@ Si no existe, se autogenera en `data/app_secret.txt`.
 
 - Ejecuta **Instalar / Preparar** otra vez desde la UI.
 - Verifica que el perfil se prepara sin errores.
-- Usa preferentemente URL directa de `raw.githubusercontent.com` en `WPLACE_TAMPERMONKEY_SCRIPT_URL` (evita depender del redirect de `github.com/.../raw/...`, que en algunos perfiles Camoufox no dispara Tampermonkey de forma consistente).
+- Usa preferentemente URL directa de `raw.githubusercontent.com` en `WPLACE_TAMPERMONKEY_SCRIPT_URL`.
 - Borra el marcador `profiles/<id>/.wplace_userscript_installed` y vuelve a preparar.
 - Nota técnica: cuando Tampermonkey se acaba de copiar como XPI por primera vez, Camoufox hace un primer arranque para activar la extensión y luego un segundo arranque para instalar el userscript.
 
