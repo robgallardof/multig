@@ -30,6 +30,29 @@ WPLACE_SCRIPT_DEFAULT = (
 )
 
 
+def _normalize_github_raw_url(url: str) -> str:
+    value = (url or "").strip()
+    if not value:
+        return ""
+    parsed = urllib.parse.urlsplit(value)
+    host = parsed.netloc.lower()
+    path = parsed.path.strip("/")
+
+    # GitHub ".../raw/..." links redirect and in some Camoufox profiles
+    # that redirect chain does not trigger Tampermonkey install detection reliably.
+    # We normalize to raw.githubusercontent.com to avoid relying on that redirect.
+    if host in {"github.com", "www.github.com"}:
+        parts = path.split("/")
+        if len(parts) >= 6 and parts[2] == "raw":
+            owner = parts[0]
+            repo = parts[1]
+            remainder = "/".join(parts[3:])
+            if owner and repo and remainder:
+                return f"https://raw.githubusercontent.com/{owner}/{repo}/{remainder}"
+
+    return value
+
+
 def _parse_args() -> argparse.Namespace:
     """
     Parses CLI arguments.
@@ -88,15 +111,17 @@ def _addon_id_from_xpi(path: Path) -> str:
     raise ValueError("Addon manifest missing Gecko ID.")
 
 
-def _ensure_addon(profile_dir: Path, addon_url: str) -> None:
+def _ensure_addon(profile_dir: Path, addon_url: str) -> bool:
     addon_path = _addon_cache_path(addon_url)
     _download_addon(addon_path, addon_url)
     addon_id = _addon_id_from_xpi(addon_path)
     extensions_dir = profile_dir / "extensions"
     extensions_dir.mkdir(parents=True, exist_ok=True)
     target = extensions_dir / f"{addon_id}.xpi"
-    if not target.exists():
-        copyfile(addon_path, target)
+    if target.exists():
+        return False
+    copyfile(addon_path, target)
+    return True
 
 
 def _ensure_firefox_prefs(profile_dir: Path) -> None:
@@ -159,7 +184,7 @@ def _normalize_userscript_url(url: str) -> str:
     if "tampermonkey.net/script_installation.php" in value:
         return ""
 
-    return value
+    return _normalize_github_raw_url(value)
 
 
 def _tampermonkey_install_url(raw_script_url: str) -> str:
@@ -304,6 +329,47 @@ def _attempt_install(ctx: Camoufox, page, install_url: str) -> bool:
         return False
 
 
+def _attempt_install_with_retries(ctx: Camoufox, page, install_url: str, retries: int = 3) -> bool:
+    if not install_url:
+        return False
+    for _ in range(max(1, retries)):
+        if _attempt_install(ctx, page, install_url):
+            return True
+        page.wait_for_timeout(1200)
+    return False
+
+
+def _candidate_install_urls(script_url: str, local_script: Path | None) -> list[str]:
+    urls: list[str] = []
+
+    # 1) Direct userscript URL (en Camoufox esto puede disparar Tampermonkey mejor que
+    # la landing de script_installation.php en algunos entornos).
+    normalized_script = _normalize_userscript_url(script_url)
+    if normalized_script:
+        urls.append(normalized_script)
+
+    # 2) URL oficial de instalación de Tampermonkey.
+    wrapped_url = _tampermonkey_install_url(script_url)
+    if wrapped_url:
+        urls.append(wrapped_url)
+
+    # 3) Fallback local al archivo .user.js descargado en el perfil.
+    if local_script:
+        urls.append(local_script.as_uri())
+        local_wrapped = _tampermonkey_install_url(local_script.as_uri())
+        if local_wrapped:
+            urls.append(local_wrapped)
+
+    seen = set()
+    deduped: list[str] = []
+    for url in urls:
+        if url in seen:
+            continue
+        seen.add(url)
+        deduped.append(url)
+    return deduped
+
+
 def _close_secondary_pages(ctx: Camoufox, keep_page) -> None:
     for page in list(ctx.pages):
         if page == keep_page:
@@ -318,16 +384,60 @@ def _install_wplace_script(ctx: Camoufox, profile_dir: Path, page) -> None:
     marker = _wplace_marker(profile_dir)
     if marker.exists():
         return
-    install_url = _tampermonkey_install_url(_wplace_script_url())
+    script_url = _wplace_script_url()
     _close_tampermonkey_welcome(ctx)
-    success = _attempt_install(ctx, page, install_url)
-    if not success:
-        local_script = _download_userscript(profile_dir)
-        if local_script:
-            success = _attempt_install(ctx, page, _tampermonkey_install_url(local_script.as_uri()))
+    page.wait_for_timeout(1500)
+    local_script = _download_userscript(profile_dir)
+    success = False
+    for install_url in _candidate_install_urls(script_url, local_script):
+        success = _attempt_install_with_retries(ctx, page, install_url)
+        if success:
+            break
     page.wait_for_timeout(1500)
     if success:
         marker.write_text("installed")
+
+
+def _run_context(
+    profile_dir: Path,
+    proxy,
+    config: dict,
+    target_url: str,
+    headless,
+    prepare_only: bool,
+    install_userscript: bool,
+) -> None:
+    with Camoufox(
+        persistent_context=True,
+        user_data_dir=str(profile_dir),
+        headless=headless,
+        proxy=proxy,
+        no_viewport=True,
+        **config,
+    ) as ctx:
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        if prepare_only:
+            if install_userscript:
+                _install_wplace_script(ctx, profile_dir, page)
+            _close_tampermonkey_welcome(ctx)
+            _close_secondary_pages(ctx, page)
+            _inject_wplace_storage(ctx, page)
+            return
+        _close_tampermonkey_welcome(ctx)
+        _close_secondary_pages(ctx, page)
+        _inject_wplace_storage(ctx, page)
+        page.goto(target_url)
+        try:
+            page.evaluate(
+                "(() => { window.moveTo(0, 0); window.resizeTo(screen.availWidth, screen.availHeight); })()"
+            )
+        except Exception:
+            pass
+        try:
+            ctx.wait_for_event("close")
+        except Exception:
+            while True:
+                time.sleep(3600)
 
 
 def main() -> None:
@@ -363,38 +473,30 @@ def main() -> None:
     profile_dir = Path(a.profile)
     addon_url = (a.addon_url or "").strip() or TAMPERMONKEY_ADDON_URL
     _ensure_firefox_prefs(profile_dir)
-    _ensure_addon(profile_dir, addon_url)
+    addon_installed_now = _ensure_addon(profile_dir, addon_url)
 
-    with Camoufox(
-        persistent_context=True,
-        user_data_dir=str(profile_dir),
-        headless=headless,
-        proxy=proxy,
-        no_viewport=True,
-        **config,
-    ) as ctx:
-        page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        if a.prepare_only:
-            _install_wplace_script(ctx, profile_dir, page)
-            _close_tampermonkey_welcome(ctx)
-            _close_secondary_pages(ctx, page)
-            _inject_wplace_storage(ctx, page)
-            return
-        _close_tampermonkey_welcome(ctx)
-        _close_secondary_pages(ctx, page)
-        _inject_wplace_storage(ctx, page)
-        page.goto(a.url)
-        try:
-            page.evaluate(
-                "(() => { window.moveTo(0, 0); window.resizeTo(screen.availWidth, screen.availHeight); })()"
-            )
-        except Exception:
-            pass
-        try:
-            ctx.wait_for_event("close")
-        except Exception:
-            while True:
-                time.sleep(3600)
+    if a.prepare_only and addon_installed_now:
+        # Firefox/Camoufox can require one startup cycle after copying the XPI
+        # before Tampermonkey starts intercepting .user.js installs.
+        _run_context(
+            profile_dir,
+            proxy,
+            config,
+            a.url,
+            headless,
+            prepare_only=True,
+            install_userscript=False,
+        )
+
+    _run_context(
+        profile_dir,
+        proxy,
+        config,
+        a.url,
+        headless,
+        prepare_only=bool(a.prepare_only),
+        install_userscript=True,
+    )
 
 
 if __name__ == "__main__":
