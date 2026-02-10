@@ -1,110 +1,190 @@
 # Camoufox Session Manager
 
-Gestor moderno de **perfiles persistentes** (sesiones) para Camoufox:
-- Perfil = usuario (nombre + icono)
-- Guardado en disco (`data/profiles.json` + carpeta `profiles/<id>`)
-- UI moderna y responsive
-- i18n español
-- Backend en Next API que lanza Camoufox vía Python
-- Selección múltiple de perfiles para acciones en batch (eliminar/exportar)
+Gestor de perfiles persistentes para Camoufox con UI en Next.js + backend API + runner en Python.
 
-## Sesiones (mantener login)
-El objetivo principal es **conservar sesiones**: si te logueas en una web dentro de un perfil, el login queda guardado
-porque la sesión vive en la carpeta `profiles/<id>/` (cookies + storage). Mientras abras ese mismo perfil, sigues logueado.
+## ¿Qué hace esta app?
 
-## Branding
-© 2026 robertogallardo.dev  
-Development by robertogallardo
+La app te permite manejar múltiples perfiles de navegador (sesiones separadas) de forma persistente:
+
+- Cada perfil guarda cookies, localStorage y estado en disco.
+- Puedes abrir/cerrar perfiles desde la UI.
+- Puedes preparar perfiles para instalar Tampermonkey + userscript automáticamente.
+- Puedes asignar proxies (Webshare) para que cada perfil use IP distinta.
+
+En términos simples: **cada perfil es como un navegador independiente que recuerda tu login**.
+
+---
+
+## Arquitectura (cómo funciona por dentro)
+
+- **Frontend/UI**: Next.js (App Router) en `app/`.
+- **API server-side**: rutas en `app/api/*` para crear perfiles, lanzar navegador, sync proxies, etc.
+- **Lógica de servidor**: `src/server/*` (repositorios, launcher, settings, sqlite, encriptación).
+- **Runner Python**: `python/run_one.py` abre Camoufox con perfil persistente e instala addon/userscript.
+- **Persistencia**:
+  - SQLite: `data/app.db`
+  - Config cifrada: `data/settings.enc.json`
+  - Perfil por usuario: `profiles/<id>/`
+
+Flujo típico al abrir un perfil:
+
+1. UI llama API de launch.
+2. API lee configuración/proxy y arma parámetros.
+3. Se ejecuta `python/run_one.py`.
+4. Camoufox abre usando `user_data_dir=profiles/<id>`.
+5. El perfil conserva estado entre reinicios.
+
+---
 
 ## Requisitos
+
+### Forma 1 (la más fácil): repo local
+
+Solo necesitas:
+
 - Node.js 20+
-- Python 3.10+ (instalado)
+- Python 3.10+
+
+Y correr:
+
+```bash
+npm install
+npm run dev
+```
+
+Abre `http://localhost:3000` y en la UI da click en **Prepare / Instalar**.
+
+Ese botón deja listo Python para Camoufox (venv + paquetes + `camoufox fetch`). Sin ese paso no abrirán los perfiles.
+
+---
+
+### Forma 2: Docker (segunda forma)
+
+Si no quieres instalar Node/Python localmente:
+
+```bash
+docker compose up --build
+```
+
+Persistencia de datos:
+
+- `./data` → base de datos y settings
+- `./profiles` → sesiones persistentes por perfil
+
+Esta opción levanta la app lista para usar, encapsulando runtime dentro del contenedor.
+
+---
+
+### Opción 3: build de producción (sin Docker)
+
+Si quieres correr en modo producción con build local:
+
+```bash
+npm install
+npm run build
+npm start
+```
+
+La app queda disponible (por defecto) en `http://localhost:3000`.
+
+> Nota: aunque la UI esté en build, **Python sigue siendo obligatorio** porque el launcher de Camoufox vive en `python/run_one.py`.
+
+---
+
+## Tampermonkey / userscript (caso Camoufox)
+
+Esta app prepara el perfil con Tampermonkey y luego intenta instalar el userscript Wplace.
+
+Orden de intentos de instalación (implementado para mejorar compatibilidad en Camoufox):
+
+1. Abrir URL directa del `.user.js`.
+2. Abrir `tampermonkey.net/script_installation.php#url=...`.
+3. Fallback a copia local `file://.../wplace-bot.user.js`.
+4. Fallback adicional con `script_installation.php#url=file://...`.
+
+Esto existe porque en algunos entornos Camoufox la landing de `script_installation.php` no siempre dispara la extensión de forma confiable.
+
+Variables útiles:
+
+- `WPLACE_TAMPERMONKEY_SCRIPT_URL`: URL del userscript (acepta URL directa o enlace de instalación de Tampermonkey).
+- `WPLACE_ENABLED`: habilita inyección de storage de Wplace (`1/true/yes`).
+- `WPLACE_WBOT_STORAGE`: JSON serializado para guardar en `localStorage['wbot']`.
+
+---
 
 ## Acceso por token (1 por dispositivo)
-Para limitar el acceso a la app, existe una lista de tokens en `data/access_tokens.json`.
-Cada token representa un dispositivo (1 token por device). El flujo es:
-1) Abre la app y pega tu token en la pantalla de acceso.
-2) El token se guarda en una cookie HTTP-only.
-3) Todas las rutas (UI + API) requieren un token válido.
 
-Ejemplo de entrada en `data/access_tokens.json`:
+La app protege UI + API mediante token.
+
+- Lista de tokens: `data/access_tokens.json`
+- El token válido se guarda como cookie HTTP-only.
+- Si revocas token (`enabled=false`), se bloquea acceso.
+
+Ejemplo:
+
 ```json
 [
   { "token": "multig-...", "device": "laptop-1", "enabled": true }
 ]
 ```
 
-Si necesitas revocar un dispositivo, pon `"enabled": false` o elimina la entrada.
+---
 
-## Docker (sin instalar Node/Python local)
-Puedes usar Docker para levantar todo sin instalar Node ni Python localmente:
-```bash
-docker compose up --build
-```
+## Proxies Webshare
 
-Datos persistentes:
-- `./data` (DB y settings)
-- `./profiles` (sesiones de Camoufox)
+Desde el botón **Webshare** en la UI:
 
-## Ejecutar
-1) Instala dependencias Node:
-```bash
-npm install
-npm run dev
-```
+- Guardas token/credenciales en el servidor (cifradas).
+- Sincronizas pool de proxies.
+- Al abrir un perfil, se asigna proxy aleatorio no repetido entre sesiones activas.
+- Puedes liberar/rotar proxy por perfil.
 
-2) Abre la UI:
-- http://localhost:3000
+Se recomienda fijar secreto:
 
-3) En la UI, pulsa **“Instalar / Preparar”**
-Esto:
-- crea `python/.venv`
-- instala `camoufox` + `playwright`
-- ejecuta `python -m camoufox fetch`
-
-Luego ya puedes abrir perfiles.
-
-## Estructura
-- `app/` UI + API routes
-- `src/server/` repositorio de perfiles + launcher Camoufox + setup Python
-- `python/` runner `run_one.py` y `requirements.txt`
-- `data/profiles.json` lista de perfiles
-- `profiles/<id>/` carpetas persistentes por perfil
-
-
-## Webshare (configuración global)
-
-En la barra superior hay un botón **Webshare**:
-- Guarda Token/Usuario/Password **en el servidor**, encriptado en disco (data/settings.enc.json).
-- La UI nunca vuelve a ver los secretos (solo estado + token enmascarado).
-- Los proxies se asignan automáticamente al abrir un perfil (IP aleatoria, sin repetirse entre instancias activas).
-
-Recomendado: define `APP_SECRET` en `.env.local` para una llave estable.
-Ejemplo:
 ```env
 APP_SECRET=una-frase-larga-y-secreta
 ```
 
-Si no defines `APP_SECRET`, el servidor genera uno local y lo guarda en `data/app_secret.txt`.
+Si no existe, se autogenera en `data/app_secret.txt`.
 
+---
 
-## SQLite (no localStorage)
+## Estructura rápida del proyecto
 
-La app usa SQLite server-side (`data/app.db`) para:
-- perfiles
-- pool de proxies (importados desde Webshare)
-- asignación (un proxy no se reutiliza entre perfiles)
+- `app/` → UI y endpoints API
+- `src/server/` → lógica de negocio server-side
+- `python/` → runner de Camoufox
+- `data/` → SQLite + settings
+- `profiles/` → sesiones persistentes
 
-Flujo:
-1) Configura Webshare token en UI.
-2) Sincroniza proxies (botón en el modal Webshare).
-3) Abre un perfil: la IP se asigna automáticamente (aleatoria, no reutilizada).
-4) Si necesitas rotar IP, usa el botón 🔁 en la tarjeta del perfil.
+---
 
+## Troubleshooting
 
-## Windows note (SQLite)
+### 1) “No instala userscript en Camoufox”
 
-This project uses `better-sqlite3`. On Windows, if installation fails, install:
-- Python (already likely installed)
-- Visual Studio Build Tools (C++ workload)
-Then run `npm install` again.
+- Ejecuta **Instalar / Preparar** otra vez desde la UI.
+- Verifica que el perfil se prepara sin errores.
+- Usa preferentemente URL directa de `raw.githubusercontent.com` en `WPLACE_TAMPERMONKEY_SCRIPT_URL` (evita depender del redirect de `github.com/.../raw/...`, que en algunos perfiles Camoufox no dispara Tampermonkey de forma consistente).
+- Borra el marcador `profiles/<id>/.wplace_userscript_installed` y vuelve a preparar.
+- Nota técnica: cuando Tampermonkey se acaba de copiar como XPI por primera vez, Camoufox hace un primer arranque para activar la extensión y luego un segundo arranque para instalar el userscript.
+
+### 2) Error con `better-sqlite3` en Windows
+
+Instala:
+
+- Python
+- Visual Studio Build Tools (workload C++)
+
+Después vuelve a correr:
+
+```bash
+npm install
+```
+
+---
+
+## Branding
+
+© 2026 robertogallardo.dev  
+Development by robertogallardo
