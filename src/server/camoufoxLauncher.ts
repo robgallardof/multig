@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { spawnSync } from "node:child_process";
 import { AppPaths } from "./paths";
@@ -13,6 +14,22 @@ import { LogRepository } from "./logRepository";
  * @since 2026-01-23
  */
 export class CamoufoxLauncher {
+  private static shouldUseDetachedMode(): boolean {
+    const raw = String(process.env.CAMOUFOX_DETACHED ?? "").trim().toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes";
+  }
+
+  private static shouldPrepareProfile(profileId: string): boolean {
+    const profileDir = path.join(AppPaths.profilesDir(), profileId);
+    const marker = path.join(profileDir, ".wplace_userscript_installed");
+    return !fs.existsSync(marker);
+  }
+
+  private static forcePrepareProfile(): boolean {
+    const raw = String(process.env.CAMOUFOX_FORCE_PREPARE ?? "").trim().toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes";
+  }
+
   /**
    * Prepares a profile by launching Camoufox once to install addons/userscripts and then exiting.
    *
@@ -33,25 +50,38 @@ export class CamoufoxLauncher {
     if (config) args.push("--config-json", JSON.stringify(config));
     if (addonUrl) args.push("--addon-url", addonUrl);
 
-    const result = spawnSync(py, args, {
-      cwd: process.cwd(),
-      stdio: "ignore",
-      env: {
-        ...process.env,
-        ...(extraEnv || {}),
-      },
-    });
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const result = spawnSync(py, args, {
+        cwd: process.cwd(),
+        stdio: ["ignore", "pipe", "pipe"],
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          ...(extraEnv || {}),
+        },
+      });
 
-    if (result.status !== 0) {
+      if (result.status === 0) {
+        LogRepository.info("Camoufox profile prepared", { profileId, url, attempt });
+        return true;
+      }
+
+      const stdout = String(result.stdout || "").slice(-3000);
+      const stderr = String(result.stderr || "").slice(-3000);
       LogRepository.error("Camoufox profile preparation failed", String(result.status ?? "unknown"), {
         profileId,
         url,
+        attempt,
+        signal: result.signal ?? null,
+        stdout,
+        stderr,
       });
-      return false;
-    }
 
-    LogRepository.info("Camoufox profile prepared", { profileId, url });
-    return true;
+      if (attempt < 3) {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 800);
+      }
+    }
+    return false;
   }
 
   /**
@@ -76,6 +106,24 @@ export class CamoufoxLauncher {
 
     const profileDir = path.join(AppPaths.profilesDir(), profileId);
 
+    const mustPrepare = CamoufoxLauncher.forcePrepareProfile() || CamoufoxLauncher.shouldPrepareProfile(profileId);
+    if (mustPrepare) {
+      const prepared = CamoufoxLauncher.prepareProfile(
+        profileId,
+        url,
+        config,
+        addonUrl,
+        extraEnv
+      );
+      if (!prepared) {
+        LogRepository.error("Camoufox launch blocked: profile preparation failed", undefined, {
+          profileId,
+          url,
+        });
+        return -1;
+      }
+    }
+
     const args = ["-u", AppPaths.runOnePy(), "--profile", profileDir, "--url", url];
 
     if (proxyServer) args.push("--proxy-server", proxyServer);
@@ -87,7 +135,7 @@ export class CamoufoxLauncher {
     const child = spawn(py, args, {
       cwd: process.cwd(),
       stdio: "ignore",
-      detached: true,
+      detached: CamoufoxLauncher.shouldUseDetachedMode(),
       windowsHide: false,
       env: {
         ...process.env,
@@ -116,7 +164,9 @@ export class CamoufoxLauncher {
       });
     });
 
-    child.unref();
+    if (CamoufoxLauncher.shouldUseDetachedMode()) {
+      child.unref();
+    }
 
     return child.pid ?? -1;
   }

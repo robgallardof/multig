@@ -264,27 +264,26 @@ def _get_webext_uuid(profile_dir: Path, addon_id: str) -> str | None:
 
 
 def _open_tampermonkey_editor(page, uuid: str) -> bool:
+    editor_ready_script = """(selector) => {
+        const container = document.querySelector(selector);
+        if (!container) return false;
+        return Boolean(
+            container.querySelector('.CodeMirror') ||
+            container.querySelector('.CodeMirror textarea') ||
+            container.querySelector('textarea')
+        );
+    }"""
+
     for route in TAMPERMONKEY_EDITOR_ANCHORS:
-        try:
-            page.goto(f"moz-extension://{uuid}/{route}", wait_until="domcontentloaded")
-            page.wait_for_timeout(900)
-            has_editor = bool(
-                page.evaluate(
-                    """(selector) => {
-                        const container = document.querySelector(selector);
-                        if (!container) return false;
-                        return Boolean(
-                            container.querySelector('.CodeMirror') ||
-                            container.querySelector('textarea')
-                        );
-                    }""",
-                    TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR,
-                )
-            )
-            if has_editor:
-                return True
-        except Exception:
-            continue
+        for _ in range(3):
+            try:
+                page.goto(f"moz-extension://{uuid}/{route}", wait_until="domcontentloaded")
+                page.wait_for_timeout(700)
+                if bool(page.evaluate(editor_ready_script, TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR)):
+                    return True
+            except Exception:
+                continue
+            page.wait_for_timeout(400)
     return False
 
 
@@ -332,7 +331,25 @@ def _dismiss_tampermonkey_banners(page) -> None:
 
 def _editor_content_matches(page, expected: str) -> bool:
     check_script = """([selector, expected]) => {
-        const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
+        const collectDocs = (rootDoc) => {
+            const docs = [];
+            const queue = [rootDoc];
+            while (queue.length) {
+                const doc = queue.shift();
+                if (!doc || docs.includes(doc)) continue;
+                docs.push(doc);
+                for (const iframe of Array.from(doc.querySelectorAll('iframe'))) {
+                    try {
+                        if (iframe.contentDocument) queue.push(iframe.contentDocument);
+                    } catch (_) {
+                        continue;
+                    }
+                }
+            }
+            return docs;
+        };
+
+        const docs = collectDocs(document);
         for (const doc of docs) {
             const container = doc.querySelector(selector) || doc;
             const cmEl = container.querySelector('.CodeMirror') || doc.querySelector('.CodeMirror');
@@ -343,7 +360,11 @@ def _editor_content_matches(page, expected: str) -> bool:
                     return true;
                 }
             }
-            const ta = container.querySelector('textarea') || doc.querySelector('textarea');
+            const ta =
+                container.querySelector('.CodeMirror textarea') ||
+                container.querySelector('textarea') ||
+                doc.querySelector('.CodeMirror textarea') ||
+                doc.querySelector('textarea');
             if (ta && String(ta.value || '').replace(/\r\n/g, '\n') === expected) {
                 return true;
             }
@@ -370,15 +391,10 @@ def _focus_editor_with_tab_navigation(page, max_tabs: int = 12) -> bool:
         return Boolean(isCodeMirrorTextarea || isInsideCodeMirror);
     }"""
 
-    try:
-        page.keyboard.press('Home')
-    except Exception:
-        pass
-
     for _ in range(max_tabs):
         try:
             page.keyboard.press('Tab')
-            page.wait_for_timeout(100)
+            page.wait_for_timeout(120)
             if bool(page.evaluate(check_focus_script)):
                 return True
         except Exception:
@@ -386,12 +402,72 @@ def _focus_editor_with_tab_navigation(page, max_tabs: int = 12) -> bool:
 
     return False
 
+
+def _wait_tampermonkey_editor_ready(page) -> bool:
+    ready_script = """(selector) => {
+        const collectDocs = (rootDoc) => {
+            const docs = [];
+            const queue = [rootDoc];
+            while (queue.length) {
+                const doc = queue.shift();
+                if (!doc || docs.includes(doc)) continue;
+                docs.push(doc);
+                for (const iframe of Array.from(doc.querySelectorAll('iframe'))) {
+                    try {
+                        if (iframe.contentDocument) queue.push(iframe.contentDocument);
+                    } catch (_) {
+                        continue;
+                    }
+                }
+            }
+            return docs;
+        };
+
+        const docs = collectDocs(document);
+        for (const doc of docs) {
+            const container = doc.querySelector(selector) || doc;
+            const cmEl = container.querySelector('.CodeMirror') || doc.querySelector('.CodeMirror');
+            if (cmEl && (cmEl.CodeMirror || cmEl.querySelector('textarea'))) {
+                return true;
+            }
+            if (container.querySelector('textarea') || doc.querySelector('textarea')) {
+                return true;
+            }
+        }
+        return false;
+    }"""
+
+    for _ in range(20):
+        try:
+            if bool(page.evaluate(ready_script, TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR)):
+                return True
+        except Exception:
+            pass
+        page.wait_for_timeout(250)
+    return False
+
+
 def _set_tampermonkey_editor_code(page, code: str) -> bool:
     normalized = code.replace("\r\n", "\n")
 
-    # Primary path: write directly through CodeMirror API when available.
     script = """([selector, code]) => {
-        const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
+        const collectDocs = (rootDoc) => {
+            const docs = [];
+            const queue = [rootDoc];
+            while (queue.length) {
+                const doc = queue.shift();
+                if (!doc || docs.includes(doc)) continue;
+                docs.push(doc);
+                for (const iframe of Array.from(doc.querySelectorAll('iframe'))) {
+                    try {
+                        if (iframe.contentDocument) queue.push(iframe.contentDocument);
+                    } catch (_) {
+                        continue;
+                    }
+                }
+            }
+            return docs;
+        };
 
         const setCodeMirrorValue = (cm, value) => {
             if (!cm || typeof cm.getValue !== 'function') return false;
@@ -409,26 +485,26 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
             return true;
         };
 
-        const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+        const docs = collectDocs(document);
 
         for (const doc of docs) {
             const container = doc.querySelector(selector) || doc;
-            const cmCandidates = [];
 
-            for (const cmEl of Array.from(container.querySelectorAll('.CodeMirror, .CodeMirror-wrap, .CodeMirror-focused'))) {
-                if (cmEl?.CodeMirror) cmCandidates.push(cmEl.CodeMirror);
-            }
-            for (const cmEl of Array.from(doc.querySelectorAll('.CodeMirror'))) {
-                if (cmEl?.CodeMirror) cmCandidates.push(cmEl.CodeMirror);
-            }
+            const cmElements = [
+                ...Array.from(container.querySelectorAll('.CodeMirror, .CodeMirror-wrap, .CodeMirror-focused')),
+                ...Array.from(doc.querySelectorAll('.CodeMirror')),
+            ];
 
-            const maybeEditor = [doc.defaultView?.editor, doc.defaultView?.Editor, doc.defaultView?.tmEditor];
-            for (const candidate of maybeEditor) {
-                if (candidate && typeof candidate.getValue === 'function') cmCandidates.push(candidate);
+            for (const cmEl of cmElements) {
+                if (cmEl?.CodeMirror && setCodeMirrorValue(cmEl.CodeMirror, code)) {
+                    return true;
+                }
             }
 
-            for (const cm of cmCandidates) {
-                if (setCodeMirrorValue(cm, code)) {
+            const win = doc.defaultView;
+            const editorCandidates = [win?.editor, win?.Editor, win?.tmEditor, win?.codemirror, win?.CodeMirrorEditor];
+            for (const candidate of editorCandidates) {
+                if (candidate && typeof candidate.getValue === 'function' && setCodeMirrorValue(candidate, code)) {
                     return true;
                 }
             }
@@ -439,13 +515,31 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
                 doc.querySelector('.CodeMirror textarea') ||
                 doc.querySelector('textarea');
 
-            if (ta && nativeValueSetter) {
+            if (ta) {
                 ta.focus();
-                nativeValueSetter.call(ta, code);
-                ta.dispatchEvent(new Event('input', { bubbles: true }));
-                ta.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, data: code, inputType: 'insertFromPaste' }));
-                ta.dispatchEvent(new InputEvent('input', { bubbles: true, data: code, inputType: 'insertFromPaste' }));
+                ta.value = code;
+                try {
+                    ta.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true }));
+                } catch (_) {
+                    ta.dispatchEvent(new Event('paste', { bubbles: true, cancelable: true }));
+                }
+                try {
+                    ta.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, data: code, inputType: 'insertFromPaste' }));
+                    ta.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, data: code, inputType: 'insertFromPaste' }));
+                } catch (_) {
+                    ta.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                }
                 ta.dispatchEvent(new Event('change', { bubbles: true }));
+
+                const cm = ta.closest('.CodeMirror')?.CodeMirror;
+                if (cm && typeof cm.getDoc === 'function') {
+                    const cmDoc = cm.getDoc();
+                    if (cmDoc && typeof cmDoc.setValue === 'function') {
+                        cmDoc.setValue(code);
+                    }
+                    cm.save?.();
+                    cm.focus?.();
+                }
                 return true;
             }
         }
@@ -453,48 +547,129 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
         return false;
     }"""
 
-    try:
-        pasted = bool(page.evaluate(script, [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, normalized]))
-        if pasted:
-            page.wait_for_timeout(200)
-            if _editor_content_matches(page, normalized):
-                return True
-    except Exception:
+    if _wait_tampermonkey_editor_ready(page):
+        try:
+            pasted = bool(page.evaluate(script, [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, normalized]))
+            if pasted:
+                page.wait_for_timeout(250)
+                if _editor_content_matches(page, normalized):
+                    return True
+        except Exception:
+            pasted = False
+    else:
         pasted = False
 
-    # Human-like fallback: focus editor, select all, replace text, then verify.
     try:
-        page.locator(".CodeMirror-scroll, .CodeMirror, .CodeMirror textarea, textarea").first.click(timeout=2000)
-        for shortcut in ("Control+A", "Meta+A"):
+        page.locator('.CodeMirror, .CodeMirror-scroll, .CodeMirror textarea, textarea').first.click(timeout=2500)
+        for shortcut in ('Control+A', 'Meta+A'):
             try:
                 page.keyboard.press(shortcut)
             except Exception:
                 continue
-        page.keyboard.press("Delete")
         page.keyboard.insert_text(normalized)
-        page.wait_for_timeout(250)
+        page.wait_for_timeout(350)
         if _editor_content_matches(page, normalized):
             return True
     except Exception:
         pass
 
-    # Accessibility/focus fallback: tab into editor (commonly ~6 tabs in TM UI).
     try:
-        if _focus_editor_with_tab_navigation(page, max_tabs=12):
-            for shortcut in ("Control+A", "Meta+A"):
+        if _focus_editor_with_tab_navigation(page, max_tabs=16):
+            for shortcut in ('Control+A', 'Meta+A'):
                 try:
                     page.keyboard.press(shortcut)
                 except Exception:
                     continue
-            page.keyboard.press("Delete")
             page.keyboard.insert_text(normalized)
-            page.wait_for_timeout(300)
+            page.wait_for_timeout(350)
             if _editor_content_matches(page, normalized):
                 return True
     except Exception:
         pass
 
     return pasted
+
+
+def _save_tampermonkey_editor(page) -> None:
+    save_script = """() => {
+        const collectDocs = (rootDoc) => {
+            const docs = [];
+            const queue = [rootDoc];
+            while (queue.length) {
+                const doc = queue.shift();
+                if (!doc || docs.includes(doc)) continue;
+                docs.push(doc);
+                for (const iframe of Array.from(doc.querySelectorAll('iframe'))) {
+                    try {
+                        if (iframe.contentDocument) queue.push(iframe.contentDocument);
+                    } catch (_) {
+                        continue;
+                    }
+                }
+            }
+            return docs;
+        };
+
+        const docs = collectDocs(document);
+        for (const doc of docs) {
+            const selectors = [
+                'button[id*=save i]',
+                'input[type="button"][id*=save i]',
+                'input[type="submit"][id*=save i]',
+                'button[class*=save i]',
+                'a[class*=save i]',
+                '.save',
+                '[data-command="save"]',
+                '[title*="Save" i]',
+                '[title*="Guardar" i]',
+            ];
+
+            for (const sel of selectors) {
+                const el = doc.querySelector(sel);
+                if (!el) continue;
+                try {
+                    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }));
+                    if (typeof el.click === 'function') el.click();
+                    return true;
+                } catch (_) {
+                    continue;
+                }
+            }
+
+            const cmEl = doc.querySelector('.CodeMirror');
+            const cm = cmEl?.CodeMirror;
+            if (cm && typeof cm.save === 'function') {
+                cm.save();
+                return true;
+            }
+
+            try {
+                const win = doc.defaultView;
+                const editorCandidates = [win?.editor, win?.Editor, win?.tmEditor];
+                for (const ed of editorCandidates) {
+                    if (ed && typeof ed.save === 'function') {
+                        ed.save();
+                        return true;
+                    }
+                }
+            } catch (_) {
+                continue;
+            }
+        }
+        return false;
+    }"""
+
+    for shortcut in ("Control+S", "Meta+S"):
+        try:
+            page.keyboard.press(shortcut)
+            page.wait_for_timeout(250)
+        except Exception:
+            continue
+
+    try:
+        page.evaluate(save_script)
+    except Exception:
+        pass
 
 
 def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_path: Path) -> bool:
@@ -529,42 +704,7 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
 
     _dismiss_tampermonkey_banners(page)
 
-    for shortcut in ("Control+S", "Meta+S"):
-        try:
-            page.keyboard.press(shortcut)
-            page.wait_for_timeout(250)
-        except Exception:
-            continue
-
-    try:
-        page.evaluate(
-            """() => {
-                const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
-                const selectors = [
-                    'button[id*=save i]',
-                    'input[type="button"][id*=save i]',
-                    'input[type="submit"][id*=save i]',
-                    'button[class*=save i]',
-                    'a[class*=save i]',
-                    '.save',
-                    '[data-command="save"]',
-                    '[title*="Save" i]',
-                    '[title*="Guardar" i]',
-                ];
-                for (const doc of docs) {
-                    for (const sel of selectors) {
-                        const el = doc.querySelector(sel);
-                        if (!el) continue;
-                        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }));
-                        if (typeof el.click === 'function') el.click();
-                        return true;
-                    }
-                }
-                return false;
-            }"""
-        )
-    except Exception:
-        pass
+    _save_tampermonkey_editor(page)
 
     try:
         page.get_by_role("button", name=re.compile(r"(Save|Guardar)", re.I)).click(timeout=2000)
