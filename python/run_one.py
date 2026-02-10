@@ -94,8 +94,45 @@ def _ensure_addon(profile_dir: Path, addon_url: str) -> None:
         copyfile(addon_path, target)
 
 
+def _ensure_firefox_prefs(profile_dir: Path) -> None:
+    prefs_path = profile_dir / "user.js"
+    prefs = {
+        "extensions.autoDisableScopes": 0,
+        "extensions.enabledScopes": 15,
+        "extensions.ui.notifyUnsigned": False,
+        "xpinstall.signatures.required": False,
+        "extensions.langpacks.signatures.required": False,
+        "extensions.webextensions.restrictedDomains": "",
+    }
+    lines = []
+    for key, value in prefs.items():
+        if isinstance(value, bool):
+            value_str = "true" if value else "false"
+        elif isinstance(value, int):
+            value_str = str(value)
+        else:
+            value_str = f"\"{value}\""
+        lines.append(f"user_pref(\"{key}\", {value_str});\n")
+    existing = ""
+    if prefs_path.exists():
+        existing = prefs_path.read_text(encoding="utf-8", errors="ignore")
+    with prefs_path.open("a", encoding="utf-8") as handle:
+        for line in lines:
+            if line.strip() not in existing:
+                handle.write(line)
+
+
 def _wplace_script_url() -> str:
     return os.getenv("WPLACE_TAMPERMONKEY_SCRIPT_URL", "").strip() or WPLACE_SCRIPT_DEFAULT
+
+
+def _wplace_raw_script_url() -> str:
+    install_url = _wplace_script_url()
+    if "#url=" in install_url:
+        raw_url = install_url.split("#url=", 1)[1].strip()
+        if raw_url:
+            return raw_url
+    return install_url
 
 
 def _wplace_marker(profile_dir: Path) -> Path:
@@ -132,35 +169,108 @@ def _inject_wplace_storage(ctx: Camoufox, page) -> None:
         pass
 
 
+def _close_tampermonkey_welcome(ctx: Camoufox) -> None:
+    for page in list(ctx.pages):
+        try:
+            url = page.url or ""
+            if "tampermonkey.net" in url and "script_installation.php" not in url:
+                page.close()
+        except Exception:
+            continue
+
+
+def _download_userscript(profile_dir: Path) -> Path | None:
+    url = _wplace_raw_script_url()
+    if not url or not url.startswith(("http://", "https://")):
+        return None
+    target = profile_dir / "wplace-bot.user.js"
+    try:
+        with urllib.request.urlopen(url) as response:
+            content = response.read()
+        if not content:
+            return None
+        target.write_bytes(content)
+        return target
+    except Exception:
+        return None
+
+
+def _click_install_button(page, timeout_ms: int = 8000) -> bool:
+    try:
+        button = page.get_by_role(
+            "button",
+            name=re.compile(r"^(Install|Reinstall|Confirm|Confirm installation|Instalar|Reinstalar|Confirmar)$", re.I),
+        )
+        button.first.wait_for(state="visible", timeout=timeout_ms)
+        button.first.click()
+        return True
+    except Exception:
+        pass
+    try:
+        candidates = page.locator("input[type='submit'], button, a")
+        count = candidates.count()
+        for idx in range(count):
+            el = candidates.nth(idx)
+            label = (el.inner_text() or "").strip().lower()
+            if not label:
+                label = (el.get_attribute("value") or "").strip().lower()
+            if label and any(word in label for word in ("install", "reinstall", "confirm", "instalar", "confirmar")):
+                el.click()
+                return True
+    except Exception:
+        return False
+    return False
+
+
+def _wait_install_success(page, timeout_ms: int = 6000) -> bool:
+    try:
+        page.get_by_text(re.compile(r"(installed|reinstall|instalado|reinstalar)", re.I)).wait_for(
+            state="visible",
+            timeout=timeout_ms,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _attempt_install(ctx: Camoufox, page, install_url: str) -> bool:
+    try:
+        page.goto(install_url, wait_until="domcontentloaded")
+        if not _click_install_button(page):
+            return False
+        try:
+            new_page = ctx.wait_for_event("page", timeout=4000)
+        except Exception:
+            new_page = None
+        if new_page:
+            _click_install_button(new_page, timeout_ms=10000)
+            new_page.wait_for_timeout(1000)
+            _wait_install_success(new_page, timeout_ms=4000)
+            new_page.close()
+        if _wait_install_success(page, timeout_ms=4000):
+            return True
+        return True
+    except Exception:
+        return False
+
+
 def _install_wplace_script(ctx: Camoufox, profile_dir: Path) -> None:
     marker = _wplace_marker(profile_dir)
     if marker.exists():
         return
     install_url = _wplace_script_url()
+    _close_tampermonkey_welcome(ctx)
     page = ctx.new_page()
-    success = False
-    try:
-        page.goto(install_url, wait_until="domcontentloaded")
-        page.wait_for_timeout(1000)
-        button = page.get_by_role("button", name=re.compile(r"^(Install|Reinstall)$"))
-        if button.count() > 0:
-            button.first.click()
-            success = True
-    except Exception:
-        success = False
+    success = _attempt_install(ctx, page, install_url)
     if not success and "#url=" in install_url:
-        try:
-            raw_url = install_url.split("#url=", 1)[1]
-            if raw_url:
-                page.goto(raw_url, wait_until="domcontentloaded")
-                page.wait_for_timeout(1000)
-                button = page.get_by_role("button", name=re.compile(r"^(Install|Reinstall)$"))
-                if button.count() > 0:
-                    button.first.click()
-                    success = True
-        except Exception:
-            success = False
-    page.wait_for_timeout(2000)
+        raw_url = install_url.split("#url=", 1)[1].strip()
+        if raw_url:
+            success = _attempt_install(ctx, page, raw_url)
+    if not success:
+        local_script = _download_userscript(profile_dir)
+        if local_script:
+            success = _attempt_install(ctx, page, local_script.as_uri())
+    page.wait_for_timeout(1500)
     page.close()
     if success:
         marker.write_text("installed")
@@ -198,6 +308,7 @@ def main() -> None:
 
     profile_dir = Path(a.profile)
     addon_url = (a.addon_url or "").strip() or TAMPERMONKEY_ADDON_URL
+    _ensure_firefox_prefs(profile_dir)
     _ensure_addon(profile_dir, addon_url)
 
     with Camoufox(
@@ -209,6 +320,7 @@ def main() -> None:
         **config,
     ) as ctx:
         _install_wplace_script(ctx, profile_dir)
+        _close_tampermonkey_welcome(ctx)
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         _inject_wplace_storage(ctx, page)
         page.goto(a.url)
