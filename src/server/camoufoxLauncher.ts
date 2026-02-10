@@ -14,6 +14,51 @@ import { LogRepository } from "./logRepository";
  * @since 2026-01-23
  */
 export class CamoufoxLauncher {
+  private static recordChildStream(
+    profileId: string,
+    url: string,
+    source: "stdout" | "stderr",
+    chunk: string
+  ): void {
+    const lines = chunk
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line) as { level?: string; message?: string; context?: unknown };
+        const defaultLevel = source === "stderr" ? "error" : "info";
+        const level = String(parsed.level || defaultLevel).toLowerCase();
+        const message = String(parsed.message || `Camoufox ${source}`);
+        const detail = typeof parsed.context === "string" ? parsed.context : undefined;
+        const context = {
+          profileId,
+          url,
+          source,
+          ...(parsed.context && typeof parsed.context === "object" ? (parsed.context as Record<string, unknown>) : {}),
+        };
+
+        if (level === "error") {
+          LogRepository.error(message, detail, context);
+        } else if (level === "warn" || level === "warning") {
+          LogRepository.warn(message, detail, context);
+        } else {
+          LogRepository.info(message, context);
+        }
+        continue;
+      } catch {
+        // Fallback to raw line logging.
+      }
+
+      if (source === "stderr") {
+        LogRepository.error("Camoufox stderr", line, { profileId, url });
+      } else {
+        LogRepository.info("Camoufox stdout", { profileId, url, line });
+      }
+    }
+  }
+
   private static shouldUseDetachedMode(): boolean {
     const raw = String(process.env.CAMOUFOX_DETACHED ?? "").trim().toLowerCase();
     return raw === "1" || raw === "true" || raw === "yes";
@@ -134,7 +179,7 @@ export class CamoufoxLauncher {
 
     const child = spawn(py, args, {
       cwd: process.cwd(),
-      stdio: "ignore",
+      stdio: ["ignore", "pipe", "pipe"],
       detached: CamoufoxLauncher.shouldUseDetachedMode(),
       windowsHide: false,
       env: {
@@ -149,6 +194,16 @@ export class CamoufoxLauncher {
         url,
         pid: child.pid ?? null,
       });
+    });
+
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      CamoufoxLauncher.recordChildStream(profileId, url, "stdout", chunk);
+    });
+
+    child.stderr?.setEncoding("utf8");
+    child.stderr?.on("data", (chunk: string) => {
+      CamoufoxLauncher.recordChildStream(profileId, url, "stderr", chunk);
     });
 
     child.on("exit", (code, signal) => {
