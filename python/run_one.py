@@ -288,45 +288,69 @@ def _open_tampermonkey_editor(page, uuid: str) -> bool:
     return False
 
 
-def _set_tampermonkey_editor_code(page, code: str) -> bool:
-    normalized = code.replace("\r\n", "\n")
-
-    script = """([selector, code]) => {
+def _editor_content_matches(page, expected: str) -> bool:
+    check_script = """([selector, expected]) => {
         const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
-
         for (const doc of docs) {
             const container = doc.querySelector(selector) || doc;
-            const candidates = [
-                container.querySelector('.CodeMirror'),
-                doc.querySelector('.CodeMirror'),
-            ].filter(Boolean);
-
-            for (const cmEl of candidates) {
-                const cm = cmEl.CodeMirror || cmEl.closest('.CodeMirror')?.CodeMirror || null;
-                if (cm && typeof cm.setValue === 'function') {
-                    const doc = typeof cm.getDoc === 'function' ? cm.getDoc() : null;
-                    if (doc && typeof doc.setValue === 'function') {
-                        doc.setValue(code);
-                    } else {
-                        cm.setValue(code);
-                    }
-                    cm.focus();
-                    if (typeof cm.execCommand === 'function') {
-                        cm.execCommand('goDocStart');
-                    }
-                    cm.refresh?.();
-                    if (typeof cm.save === 'function') {
-                        cm.save();
-                    }
+            const cmEl = container.querySelector('.CodeMirror') || doc.querySelector('.CodeMirror');
+            const cm = cmEl?.CodeMirror || null;
+            if (cm && typeof cm.getValue === 'function') {
+                const value = String(cm.getValue()).replace(/\r\n/g, '\n');
+                if (value === expected) {
                     return true;
                 }
             }
+            const ta = container.querySelector('textarea') || doc.querySelector('textarea');
+            if (ta && String(ta.value || '').replace(/\r\n/g, '\n') === expected) {
+                return true;
+            }
+        }
+        return false;
+    }"""
+    try:
+        return bool(page.evaluate(check_script, [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, expected]))
+    except Exception:
+        return False
 
-            const textarea = container.querySelector('textarea') || doc.querySelector('textarea');
-            if (textarea) {
-                textarea.value = code;
-                textarea.dispatchEvent(new Event('input', { bubbles: true }));
-                textarea.dispatchEvent(new Event('change', { bubbles: true }));
+
+def _set_tampermonkey_editor_code(page, code: str) -> bool:
+    normalized = code.replace("\r\n", "\n")
+
+    # Primary path: write directly through CodeMirror API when available.
+    script = """([selector, code]) => {
+        const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
+
+        const setCodeMirrorValue = (cm, value) => {
+            if (!cm || typeof cm.getValue !== 'function') return false;
+            const docRef = typeof cm.getDoc === 'function' ? cm.getDoc() : null;
+            if (docRef && typeof docRef.setValue === 'function') {
+                docRef.setValue(value);
+            } else if (typeof cm.setValue === 'function') {
+                cm.setValue(value);
+            } else {
+                return false;
+            }
+            cm.focus?.();
+            cm.refresh?.();
+            cm.save?.();
+            return true;
+        };
+
+        for (const doc of docs) {
+            const container = doc.querySelector(selector) || doc;
+            const cmEl = container.querySelector('.CodeMirror') || doc.querySelector('.CodeMirror');
+            const cm = cmEl?.CodeMirror || null;
+            if (setCodeMirrorValue(cm, code)) {
+                return true;
+            }
+
+            const ta = container.querySelector('textarea') || doc.querySelector('textarea');
+            if (ta) {
+                ta.focus();
+                ta.value = code;
+                ta.dispatchEvent(new InputEvent('input', { bubbles: true, data: code, inputType: 'insertText' }));
+                ta.dispatchEvent(new Event('change', { bubbles: true }));
                 return true;
             }
         }
@@ -337,35 +361,29 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
     try:
         pasted = bool(page.evaluate(script, [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, normalized]))
         if pasted:
-            page.wait_for_timeout(250)
-            check_script = """([selector, expected]) => {
-                const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
-                for (const doc of docs) {
-                    const container = doc.querySelector(selector) || doc;
-                    const cmEl = container.querySelector('.CodeMirror') || doc.querySelector('.CodeMirror');
-                    const cm = cmEl?.CodeMirror || null;
-                    if (cm && typeof cm.getValue === 'function') {
-                        const value = String(cm.getValue()).replace(/\r\n/g, '\n');
-                        if (value === expected) {
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            }"""
-            if bool(page.evaluate(check_script, [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, normalized])):
+            page.wait_for_timeout(200)
+            if _editor_content_matches(page, normalized):
                 return True
     except Exception:
         pasted = False
 
-    # Fallback: force keyboard replacement inside editor to avoid default template persisting.
+    # Human-like fallback: focus editor, select all, replace text, then verify.
     try:
-        page.locator(".CodeMirror").first.click(timeout=1500)
-        page.keyboard.press("Control+A")
+        page.locator(".CodeMirror-scroll, .CodeMirror, .CodeMirror textarea, textarea").first.click(timeout=2000)
+        for shortcut in ("Control+A", "Meta+A"):
+            try:
+                page.keyboard.press(shortcut)
+            except Exception:
+                continue
+        page.keyboard.press("Delete")
         page.keyboard.insert_text(normalized)
-        return True
+        page.wait_for_timeout(250)
+        if _editor_content_matches(page, normalized):
+            return True
     except Exception:
-        return pasted
+        pass
+
+    return pasted
 
 
 def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_path: Path) -> bool:
@@ -391,11 +409,16 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
         return False
 
     try:
-        page.keyboard.press("Control+S")
-        page.wait_for_timeout(250)
-        page.keyboard.press("Meta+S")
+        page.locator(".CodeMirror, .CodeMirror textarea, textarea").first.click(timeout=1500)
     except Exception:
         pass
+
+    for shortcut in ("Control+S", "Meta+S"):
+        try:
+            page.keyboard.press(shortcut)
+            page.wait_for_timeout(250)
+        except Exception:
+            continue
 
     try:
         page.get_by_role("button", name=re.compile(r"(Save|Guardar)", re.I)).click(timeout=2000)
