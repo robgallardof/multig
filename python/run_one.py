@@ -37,6 +37,19 @@ TAMPERMONKEY_EDITOR_ANCHORS = (
 TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR = "#td_bmV3LXVzZXItc2NyaXB0X2VkaXQ"
 
 
+def _log(level: str, message: str, **context: object) -> None:
+    payload = {
+        "level": (level or "INFO").upper(),
+        "message": message,
+        "context": context,
+    }
+    print(json.dumps(payload, ensure_ascii=False), file=sys.stderr, flush=True)
+
+
+def _log_exception(message: str, exc: Exception, **context: object) -> None:
+    _log("ERROR", message, error=str(exc), **context)
+
+
 def _normalize_github_raw_url(url: str) -> str:
     value = (url or "").strip()
     if not value:
@@ -268,6 +281,8 @@ def _open_tampermonkey_editor(page, uuid: str) -> bool:
         const container = document.querySelector(selector);
         if (!container) return false;
         return Boolean(
+            container.querySelector('.ace_editor') ||
+            container.querySelector('.ace_text-input') ||
             container.querySelector('.CodeMirror') ||
             container.querySelector('.CodeMirror textarea') ||
             container.querySelector('textarea')
@@ -280,10 +295,13 @@ def _open_tampermonkey_editor(page, uuid: str) -> bool:
                 page.goto(f"moz-extension://{uuid}/{route}", wait_until="domcontentloaded")
                 page.wait_for_timeout(700)
                 if bool(page.evaluate(editor_ready_script, TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR)):
+                    _log("INFO", "Tampermonkey editor opened", route=route)
                     return True
-            except Exception:
+            except Exception as exc:
+                _log_exception("Tampermonkey editor route failed", exc, route=route)
                 continue
             page.wait_for_timeout(400)
+    _log("ERROR", "Tampermonkey editor not available", uuid=uuid)
     return False
 
 
@@ -352,6 +370,16 @@ def _editor_content_matches(page, expected: str) -> bool:
         const docs = collectDocs(document);
         for (const doc of docs) {
             const container = doc.querySelector(selector) || doc;
+
+            const aceEditor = container.querySelector('.ace_editor') || doc.querySelector('.ace_editor');
+            const ace = aceEditor?.env?.editor || null;
+            if (ace && typeof ace.getValue === 'function') {
+                const value = String(ace.getValue()).replace(/\r\n/g, '\n');
+                if (value === expected) {
+                    return true;
+                }
+            }
+
             const cmEl = container.querySelector('.CodeMirror') || doc.querySelector('.CodeMirror');
             const cm = cmEl?.CodeMirror || null;
             if (cm && typeof cm.getValue === 'function') {
@@ -383,12 +411,17 @@ def _focus_editor_with_tab_navigation(page, max_tabs: int = 12) -> bool:
         const active = document.activeElement;
         if (!active) return false;
 
+        const isAceInput =
+            active.tagName === 'TEXTAREA' &&
+            (active.className.includes('ace_text-input') || Boolean(active.closest && active.closest('.ace_editor')));
+
         const isCodeMirrorTextarea =
             active.tagName === 'TEXTAREA' &&
             (active.closest('.CodeMirror') || active.className.includes('CodeMirror'));
 
+        const isInsideAce = Boolean(active.closest && active.closest('.ace_editor'));
         const isInsideCodeMirror = Boolean(active.closest && active.closest('.CodeMirror'));
-        return Boolean(isCodeMirrorTextarea || isInsideCodeMirror);
+        return Boolean(isAceInput || isInsideAce || isCodeMirrorTextarea || isInsideCodeMirror);
     }"""
 
     for _ in range(max_tabs):
@@ -396,10 +429,13 @@ def _focus_editor_with_tab_navigation(page, max_tabs: int = 12) -> bool:
             page.keyboard.press('Tab')
             page.wait_for_timeout(120)
             if bool(page.evaluate(check_focus_script)):
+                _log("INFO", "Editor focused via tab navigation")
                 return True
-        except Exception:
+        except Exception as exc:
+            _log_exception("Tab navigation failed while trying to focus editor", exc)
             return False
 
+    _log("WARN", "Editor focus via tab navigation failed", max_tabs=max_tabs)
     return False
 
 
@@ -426,6 +462,10 @@ def _wait_tampermonkey_editor_ready(page) -> bool:
         const docs = collectDocs(document);
         for (const doc of docs) {
             const container = doc.querySelector(selector) || doc;
+            const aceEl = container.querySelector('.ace_editor') || doc.querySelector('.ace_editor');
+            if (aceEl && (aceEl.env?.editor || aceEl.querySelector('textarea'))) {
+                return true;
+            }
             const cmEl = container.querySelector('.CodeMirror') || doc.querySelector('.CodeMirror');
             if (cmEl && (cmEl.CodeMirror || cmEl.querySelector('textarea'))) {
                 return true;
@@ -485,10 +525,34 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
             return true;
         };
 
+        const setAceValue = (ace, value) => {
+            if (!ace || typeof ace.getValue !== 'function') return false;
+            if (typeof ace.setValue === 'function') {
+                ace.setValue(value, -1);
+            } else if (ace.session && typeof ace.session.setValue === 'function') {
+                ace.session.setValue(value);
+            } else {
+                return false;
+            }
+            ace.focus?.();
+            ace.renderer?.updateFull?.();
+            return true;
+        };
+
         const docs = collectDocs(document);
 
         for (const doc of docs) {
             const container = doc.querySelector(selector) || doc;
+
+            const aceElements = [
+                ...Array.from(container.querySelectorAll('.ace_editor')),
+                ...Array.from(doc.querySelectorAll('.ace_editor')),
+            ];
+            for (const aceEl of aceElements) {
+                if (setAceValue(aceEl?.env?.editor, code)) {
+                    return true;
+                }
+            }
 
             const cmElements = [
                 ...Array.from(container.querySelectorAll('.CodeMirror, .CodeMirror-wrap, .CodeMirror-focused')),
@@ -502,6 +566,13 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
             }
 
             const win = doc.defaultView;
+            const aceCandidates = [win?.editor, win?.Editor, win?.tmEditor, win?.aceEditor];
+            for (const candidate of aceCandidates) {
+                if (setAceValue(candidate, code)) {
+                    return true;
+                }
+            }
+
             const editorCandidates = [win?.editor, win?.Editor, win?.tmEditor, win?.codemirror, win?.CodeMirrorEditor];
             for (const candidate of editorCandidates) {
                 if (candidate && typeof candidate.getValue === 'function' && setCodeMirrorValue(candidate, code)) {
@@ -510,8 +581,10 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
             }
 
             const ta =
+                container.querySelector('.ace_text-input') ||
                 container.querySelector('.CodeMirror textarea') ||
                 container.querySelector('textarea') ||
+                doc.querySelector('.ace_text-input') ||
                 doc.querySelector('.CodeMirror textarea') ||
                 doc.querySelector('textarea');
 
@@ -530,6 +603,12 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
                     ta.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
                 }
                 ta.dispatchEvent(new Event('change', { bubbles: true }));
+
+                const ace = ta.closest('.ace_editor')?.env?.editor;
+                if (ace && typeof ace.setValue === 'function') {
+                    ace.setValue(code, -1);
+                    ace.focus?.();
+                }
 
                 const cm = ta.closest('.CodeMirror')?.CodeMirror;
                 if (cm && typeof cm.getDoc === 'function') {
@@ -553,14 +632,17 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
             if pasted:
                 page.wait_for_timeout(250)
                 if _editor_content_matches(page, normalized):
+                    _log("INFO", "Userscript injected through direct editor API")
                     return True
-        except Exception:
+        except Exception as exc:
+            _log_exception("Direct editor injection failed", exc)
             pasted = False
     else:
+        _log("WARN", "Tampermonkey editor never became ready")
         pasted = False
 
     try:
-        page.locator('.CodeMirror, .CodeMirror-scroll, .CodeMirror textarea, textarea').first.click(timeout=2500)
+        page.locator('.ace_editor, .ace_text-input, .CodeMirror, .CodeMirror-scroll, .CodeMirror textarea, textarea').first.click(timeout=2500)
         for shortcut in ('Control+A', 'Meta+A'):
             try:
                 page.keyboard.press(shortcut)
@@ -569,8 +651,10 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
         page.keyboard.insert_text(normalized)
         page.wait_for_timeout(350)
         if _editor_content_matches(page, normalized):
+            _log("INFO", "Userscript injected via keyboard insert_text")
             return True
-    except Exception:
+    except Exception as exc:
+        _log_exception("Keyboard injection strategy failed", exc)
         pass
 
     try:
@@ -583,10 +667,13 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
             page.keyboard.insert_text(normalized)
             page.wait_for_timeout(350)
             if _editor_content_matches(page, normalized):
+                _log("INFO", "Userscript injected after tab focus fallback")
                 return True
-    except Exception:
+    except Exception as exc:
+        _log_exception("Tab-focus fallback injection failed", exc)
         pass
 
+    _log("ERROR", "Unable to inject userscript into Tampermonkey editor")
     return pasted
 
 
@@ -676,6 +763,7 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
     addon_id = "firefox@tampermonkey.net"
     uuid = _get_webext_uuid(profile_dir, addon_id)
     if not uuid:
+        _log("ERROR", "Tampermonkey UUID not found in profile", profile=str(profile_dir))
         return False
 
     page = ctx.pages[0] if ctx.pages else ctx.new_page()
@@ -695,6 +783,7 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
         page.wait_for_timeout(500)
 
     if not pasted:
+        _log("ERROR", "Userscript not pasted after retries", retries=3)
         return False
 
     try:
@@ -712,6 +801,7 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
         pass
 
     page.wait_for_timeout(1200)
+    _log("INFO", "Userscript saved in Tampermonkey")
     return True
 
 
@@ -728,6 +818,7 @@ def _close_secondary_pages(ctx: Camoufox, keep_page) -> None:
 def _install_wplace_script(ctx: Camoufox, profile_dir: Path, page) -> None:
     marker = _wplace_marker(profile_dir)
     if marker.exists():
+        _log("INFO", "Userscript marker already present, skipping install", marker=str(marker))
         return
     _close_tampermonkey_welcome(ctx)
     page.wait_for_timeout(1500)
@@ -744,6 +835,9 @@ def _install_wplace_script(ctx: Camoufox, profile_dir: Path, page) -> None:
     page.wait_for_timeout(1500)
     if success:
         marker.write_text("installed")
+        _log("INFO", "Userscript installation completed", marker=str(marker))
+    else:
+        _log("ERROR", "Userscript installation failed", profile=str(profile_dir))
 
 
 def _run_context(
@@ -802,7 +896,11 @@ def main() -> None:
         if a.proxy_password:
             proxy["password"] = a.proxy_password
 
-    config = json.loads(a.config_json) if a.config_json else {}
+    try:
+        config = json.loads(a.config_json) if a.config_json else {}
+    except Exception as exc:
+        _log_exception("Failed to parse config JSON", exc)
+        raise
     if not isinstance(config, dict):
         raise ValueError("config-json must be a JSON object.")
 
@@ -820,6 +918,7 @@ def main() -> None:
 
     profile_dir = Path(a.profile)
     addon_url = (a.addon_url or "").strip() or TAMPERMONKEY_ADDON_URL
+    _log("INFO", "Starting Camoufox runner", profile=str(profile_dir), prepare_only=bool(a.prepare_only), url=a.url)
     _ensure_firefox_prefs(profile_dir)
     addon_installed_now = _ensure_addon(profile_dir, addon_url)
 
@@ -845,6 +944,7 @@ def main() -> None:
         prepare_only=bool(a.prepare_only),
         install_userscript=True,
     )
+    _log("INFO", "Camoufox runner finished", profile=str(profile_dir))
 
 
 if __name__ == "__main__":
