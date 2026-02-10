@@ -94,6 +94,34 @@ def _ensure_addon(profile_dir: Path, addon_url: str) -> None:
         copyfile(addon_path, target)
 
 
+def _ensure_firefox_prefs(profile_dir: Path) -> None:
+    prefs_path = profile_dir / "user.js"
+    prefs = {
+        "extensions.autoDisableScopes": 0,
+        "extensions.enabledScopes": 15,
+        "extensions.ui.notifyUnsigned": False,
+        "xpinstall.signatures.required": False,
+        "extensions.langpacks.signatures.required": False,
+        "extensions.webextensions.restrictedDomains": "",
+    }
+    lines = []
+    for key, value in prefs.items():
+        if isinstance(value, bool):
+            value_str = "true" if value else "false"
+        elif isinstance(value, int):
+            value_str = str(value)
+        else:
+            value_str = f"\"{value}\""
+        lines.append(f"user_pref(\"{key}\", {value_str});\n")
+    existing = ""
+    if prefs_path.exists():
+        existing = prefs_path.read_text(encoding="utf-8", errors="ignore")
+    with prefs_path.open("a", encoding="utf-8") as handle:
+        for line in lines:
+            if line.strip() not in existing:
+                handle.write(line)
+
+
 def _wplace_script_url() -> str:
     return os.getenv("WPLACE_TAMPERMONKEY_SCRIPT_URL", "").strip() or WPLACE_SCRIPT_DEFAULT
 
@@ -280,6 +308,7 @@ def main() -> None:
 
     profile_dir = Path(a.profile)
     addon_url = (a.addon_url or "").strip() or TAMPERMONKEY_ADDON_URL
+    _ensure_firefox_prefs(profile_dir)
     _ensure_addon(profile_dir, addon_url)
 
     with Camoufox(
