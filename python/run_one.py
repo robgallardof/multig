@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.request
@@ -137,16 +138,32 @@ def _install_wplace_script(ctx: Camoufox, profile_dir: Path) -> None:
         return
     install_url = _wplace_script_url()
     page = ctx.new_page()
-    page.goto(install_url)
+    success = False
     try:
-        button = page.get_by_role("button", name="Install")
+        page.goto(install_url, wait_until="domcontentloaded")
+        page.wait_for_timeout(1000)
+        button = page.get_by_role("button", name=re.compile(r"^(Install|Reinstall)$"))
         if button.count() > 0:
             button.first.click()
+            success = True
     except Exception:
-        pass
+        success = False
+    if not success and "#url=" in install_url:
+        try:
+            raw_url = install_url.split("#url=", 1)[1]
+            if raw_url:
+                page.goto(raw_url, wait_until="domcontentloaded")
+                page.wait_for_timeout(1000)
+                button = page.get_by_role("button", name=re.compile(r"^(Install|Reinstall)$"))
+                if button.count() > 0:
+                    button.first.click()
+                    success = True
+        except Exception:
+            success = False
     page.wait_for_timeout(2000)
     page.close()
-    marker.write_text("installed")
+    if success:
+        marker.write_text("installed")
 
 
 def main() -> None:
