@@ -133,10 +133,30 @@ def _normalize_userscript_url(url: str) -> str:
     value = (url or "").strip()
     if not value:
         return ""
-    if "tampermonkey.net/script_installation.php" in value and "#url=" in value:
-        encoded = value.split("#url=", 1)[1].strip()
-        if encoded:
-            return urllib.parse.unquote(encoded)
+
+    # Allow values copied from Tampermonkey install pages.
+    # Keep unwrapping until we reach the real userscript URL.
+    for _ in range(5):
+        if "tampermonkey.net/script_installation.php" not in value:
+            break
+        parsed = urllib.parse.urlsplit(value)
+        encoded = ""
+        if parsed.fragment.startswith("url="):
+            encoded = parsed.fragment[len("url=") :].strip()
+        if not encoded:
+            query_url = urllib.parse.parse_qs(parsed.query).get("url")
+            if query_url:
+                encoded = query_url[0].strip()
+        if not encoded:
+            return ""
+        decoded = urllib.parse.unquote(encoded).strip()
+        if not decoded or decoded == value:
+            break
+        value = decoded
+
+    if "tampermonkey.net/script_installation.php" in value:
+        return ""
+
     return value
 
 
@@ -149,8 +169,12 @@ def _tampermonkey_install_url(raw_script_url: str) -> str:
 
 
 def _wplace_script_url() -> str:
-    configured = os.getenv("WPLACE_TAMPERMONKEY_SCRIPT_URL", "").strip() or WPLACE_SCRIPT_DEFAULT
-    return _normalize_userscript_url(configured)
+    configured = os.getenv("WPLACE_TAMPERMONKEY_SCRIPT_URL", "").strip()
+    if configured:
+        normalized = _normalize_userscript_url(configured)
+        if normalized:
+            return normalized
+    return _normalize_userscript_url(WPLACE_SCRIPT_DEFAULT)
 
 
 def _wplace_marker(profile_dir: Path) -> Path:
@@ -348,12 +372,15 @@ def main() -> None:
         **config,
     ) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        _install_wplace_script(ctx, profile_dir, page)
+        if a.prepare_only:
+            _install_wplace_script(ctx, profile_dir, page)
+            _close_tampermonkey_welcome(ctx)
+            _close_secondary_pages(ctx, page)
+            _inject_wplace_storage(ctx, page)
+            return
         _close_tampermonkey_welcome(ctx)
         _close_secondary_pages(ctx, page)
         _inject_wplace_storage(ctx, page)
-        if a.prepare_only:
-            return
         page.goto(a.url)
         try:
             page.evaluate(
