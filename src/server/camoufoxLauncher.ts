@@ -1,5 +1,6 @@
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { AppPaths } from "./paths";
 import { PythonSetup } from "./pythonSetup";
 import { LogRepository } from "./logRepository";
@@ -12,6 +13,47 @@ import { LogRepository } from "./logRepository";
  * @since 2026-01-23
  */
 export class CamoufoxLauncher {
+  /**
+   * Prepares a profile by launching Camoufox once to install addons/userscripts and then exiting.
+   *
+   * @returns true when preparation succeeds.
+   * @since 2026-02-10
+   */
+  public static prepareProfile(
+    profileId: string,
+    url: string,
+    config?: Record<string, unknown>,
+    addonUrl?: string,
+    extraEnv?: Record<string, string>
+  ): boolean {
+    const py = PythonSetup.python();
+    const profileDir = path.join(AppPaths.profilesDir(), profileId);
+    const args = ["-u", AppPaths.runOnePy(), "--profile", profileDir, "--url", url, "--prepare-only"];
+
+    if (config) args.push("--config-json", JSON.stringify(config));
+    if (addonUrl) args.push("--addon-url", addonUrl);
+
+    const result = spawnSync(py, args, {
+      cwd: process.cwd(),
+      stdio: "ignore",
+      env: {
+        ...process.env,
+        ...(extraEnv || {}),
+      },
+    });
+
+    if (result.status !== 0) {
+      LogRepository.error("Camoufox profile preparation failed", String(result.status ?? "unknown"), {
+        profileId,
+        url,
+      });
+      return false;
+    }
+
+    LogRepository.info("Camoufox profile prepared", { profileId, url });
+    return true;
+  }
+
   /**
    * Launches one window.
    *

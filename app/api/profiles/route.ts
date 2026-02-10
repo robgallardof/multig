@@ -10,6 +10,9 @@ import { PythonSetup } from "../../../src/server/pythonSetup";
 import { AppConfig } from "../../../src/server/appConfig";
 import { importProfileCookiesBatch } from "../../../src/server/cookiesIo";
 import type { Profile } from "../../../src/server/profileTypes";
+import { CamoufoxLauncher } from "../../../src/server/camoufoxLauncher";
+import { buildCamoufoxOptions } from "../../../src/server/fingerprintConfig";
+import { SettingsRepository } from "../../../src/server/settingsRepository";
 
 /**
  * GET /api/profiles
@@ -108,7 +111,32 @@ export async function POST(req: Request) {
         cookies: [buildWplaceCookie(tokens[index])],
       })));
 
-      LogRepository.info("Wplace profiles created", { count: items.length });
+      const settings = await SettingsRepository.load();
+      const extraEnv: Record<string, string> = {};
+      if (AppConfig.wplaceScriptUrl) {
+        extraEnv.WPLACE_TAMPERMONKEY_SCRIPT_URL = AppConfig.wplaceScriptUrl;
+      }
+      if (AppConfig.wplaceEnabled && settings.wplaceBotStorage) {
+        extraEnv.WPLACE_WBOT_STORAGE = settings.wplaceBotStorage;
+        extraEnv.WPLACE_ENABLED = "1";
+      }
+
+      let preparedCount = 0;
+      for (const item of items) {
+        const options = buildCamoufoxOptions(item);
+        const prepared = CamoufoxLauncher.prepareProfile(
+          item.id,
+          "https://wplace.live",
+          options,
+          settings.addonUrl,
+          extraEnv
+        );
+        if (prepared) {
+          preparedCount += 1;
+        }
+      }
+
+      LogRepository.info("Wplace profiles created", { count: items.length, preparedCount });
       const profiles = ProfileRepositorySqlite.list();
       return NextResponse.json({ profiles: listPublicProfiles(profiles) });
     }
