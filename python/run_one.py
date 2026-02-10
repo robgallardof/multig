@@ -289,38 +289,55 @@ def _open_tampermonkey_editor(page, uuid: str) -> bool:
 
 
 def _set_tampermonkey_editor_code(page, code: str) -> bool:
+    script = """([selector, code]) => {
+        const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
+
+        for (const doc of docs) {
+            const container = doc.querySelector(selector) || doc;
+            const candidates = [
+                container.querySelector('.CodeMirror'),
+                doc.querySelector('.CodeMirror'),
+            ].filter(Boolean);
+
+            for (const cmEl of candidates) {
+                const cm = cmEl.CodeMirror || cmEl.closest('.CodeMirror')?.CodeMirror || null;
+                if (cm && typeof cm.setValue === 'function') {
+                    cm.setValue(code);
+                    cm.focus();
+                    if (typeof cm.save === 'function') {
+                        cm.save();
+                    }
+                    return true;
+                }
+            }
+
+            const textarea = container.querySelector('textarea') || doc.querySelector('textarea');
+            if (textarea) {
+                textarea.value = code;
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                textarea.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+            }
+        }
+
+        return false;
+    }"""
+
     try:
-        return bool(
-            page.evaluate(
-                """([selector, code]) => {
-                    const container = document.querySelector(selector) || document;
-                    const candidates = [
-                        container.querySelector('.CodeMirror'),
-                        document.querySelector('.CodeMirror'),
-                    ].filter(Boolean);
-
-                    for (const cmEl of candidates) {
-                        if (cmEl && cmEl.CodeMirror) {
-                            cmEl.CodeMirror.setValue(code);
-                            cmEl.CodeMirror.focus();
-                            return true;
-                        }
-                    }
-
-                    const textarea = container.querySelector('textarea') || document.querySelector('textarea');
-                    if (textarea) {
-                        textarea.value = code;
-                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-                        textarea.dispatchEvent(new Event('change', { bubbles: true }));
-                        return true;
-                    }
-                    return false;
-                }""",
-                [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, code],
-            )
-        )
+        pasted = bool(page.evaluate(script, [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, code]))
+        if pasted:
+            return True
     except Exception:
-        return False
+        pasted = False
+
+    # Fallback: force keyboard replacement inside editor to avoid default template persisting.
+    try:
+        page.locator(".CodeMirror").first.click(timeout=1500)
+        page.keyboard.press("Control+A")
+        page.keyboard.insert_text(code)
+        return True
+    except Exception:
+        return pasted
 
 
 def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_path: Path) -> bool:
