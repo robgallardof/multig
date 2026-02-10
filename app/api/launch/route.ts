@@ -80,6 +80,9 @@ export async function POST(req: Request) {
     const proxyPassword = settings.webshare?.password;
     const camoufoxOptions = buildCamoufoxOptions(profile, assigned ?? undefined);
     const extraEnv: Record<string, string> = {};
+    if (AppConfig.wplaceScriptUrl) {
+      extraEnv.WPLACE_TAMPERMONKEY_SCRIPT_URL = AppConfig.wplaceScriptUrl;
+    }
     if (AppConfig.wplaceEnabled && settings.wplaceBotStorage) {
       extraEnv.WPLACE_WBOT_STORAGE = settings.wplaceBotStorage;
       extraEnv.WPLACE_ENABLED = "1";
