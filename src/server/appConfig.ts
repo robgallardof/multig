@@ -1,5 +1,4 @@
 const WPLACE_SCRIPT_DEFAULT =
-  "https://www.tampermonkey.net/script_installation.php#url=" +
   "https://github.com/SoundOfTheSky/wplace-bot/raw/refs/heads/main/dist.user.js";
 
 function readEnvFlag(value?: string): boolean {

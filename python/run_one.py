@@ -25,7 +25,6 @@ from camoufox.sync_api import Camoufox
 
 TAMPERMONKEY_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/tampermonkey/latest.xpi"
 WPLACE_SCRIPT_DEFAULT = (
-    "https://www.tampermonkey.net/script_installation.php#url="
     "https://github.com/SoundOfTheSky/wplace-bot/raw/refs/heads/main/dist.user.js"
 )
 
@@ -238,29 +237,44 @@ def _attempt_install(ctx: Camoufox, page, install_url: str) -> bool:
         page.goto(install_url, wait_until="domcontentloaded")
         if not _click_install_button(page):
             return False
+        confirmed = False
         try:
             new_page = ctx.wait_for_event("page", timeout=4000)
         except Exception:
             new_page = None
         if new_page:
-            _click_install_button(new_page, timeout_ms=10000)
+            confirmed = _click_install_button(new_page, timeout_ms=10000)
             new_page.wait_for_timeout(1000)
-            _wait_install_success(new_page, timeout_ms=4000)
-            new_page.close()
+            success_new_page = _wait_install_success(new_page, timeout_ms=4000)
+            if success_new_page:
+                confirmed = True
+            try:
+                new_page.close()
+            except Exception:
+                pass
         if _wait_install_success(page, timeout_ms=4000):
             return True
-        return True
+        return confirmed
     except Exception:
         return False
 
 
-def _install_wplace_script(ctx: Camoufox, profile_dir: Path) -> None:
+def _close_secondary_pages(ctx: Camoufox, keep_page) -> None:
+    for page in list(ctx.pages):
+        if page == keep_page:
+            continue
+        try:
+            page.close()
+        except Exception:
+            continue
+
+
+def _install_wplace_script(ctx: Camoufox, profile_dir: Path, page) -> None:
     marker = _wplace_marker(profile_dir)
     if marker.exists():
         return
     install_url = _wplace_script_url()
     _close_tampermonkey_welcome(ctx)
-    page = ctx.new_page()
     success = _attempt_install(ctx, page, install_url)
     if not success and "#url=" in install_url:
         raw_url = install_url.split("#url=", 1)[1].strip()
@@ -271,7 +285,6 @@ def _install_wplace_script(ctx: Camoufox, profile_dir: Path) -> None:
         if local_script:
             success = _attempt_install(ctx, page, local_script.as_uri())
     page.wait_for_timeout(1500)
-    page.close()
     if success:
         marker.write_text("installed")
 
@@ -319,9 +332,10 @@ def main() -> None:
         no_viewport=True,
         **config,
     ) as ctx:
-        _install_wplace_script(ctx, profile_dir)
-        _close_tampermonkey_welcome(ctx)
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        _install_wplace_script(ctx, profile_dir, page)
+        _close_tampermonkey_welcome(ctx)
+        _close_secondary_pages(ctx, page)
         _inject_wplace_storage(ctx, page)
         page.goto(a.url)
         try:
