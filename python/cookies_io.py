@@ -21,8 +21,8 @@ from camoufox.sync_api import Camoufox
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Import/export cookies for a Camoufox profile directory.")
-    p.add_argument("--profile", required=True, help="Profile directory path (persistent user data).")
-    p.add_argument("--action", required=True, choices=["import", "export"], help="Action to perform.")
+    p.add_argument("--profile", help="Profile directory path (persistent user data).")
+    p.add_argument("--action", required=True, choices=["import", "export", "import-batch"], help="Action to perform.")
     return p.parse_args()
 
 
@@ -133,6 +133,30 @@ def _import_cookies(profile_dir: str) -> None:
     _with_context(profile_dir, run)
 
 
+def _import_cookies_batch() -> None:
+    payload = _load_input_json()
+    if not isinstance(payload, list):
+        raise ValueError("Batch payload must be an array.")
+
+    for item in payload:
+        if not isinstance(item, dict):
+            raise ValueError("Each batch item must be an object.")
+        profile_dir = item.get("profile")
+        raw_cookies = item.get("cookies")
+        if not profile_dir or not isinstance(profile_dir, str):
+            raise ValueError("Each batch item requires a valid profile path.")
+        if not isinstance(raw_cookies, list):
+            raise ValueError("Each batch item requires a cookies array.")
+        cookies = [_normalize_cookie(cookie) for cookie in raw_cookies]
+        if not cookies:
+            continue
+
+        def run(ctx) -> None:
+            ctx.add_cookies(cookies)
+
+        _with_context(profile_dir, run)
+
+
 def _export_cookies(profile_dir: str) -> None:
     def run(ctx):
         return ctx.cookies()
@@ -143,12 +167,17 @@ def _export_cookies(profile_dir: str) -> None:
 
 def main() -> None:
     args = _parse_args()
+    if args.action != "import-batch" and not args.profile:
+        raise ValueError("--profile is required for this action")
 
     if args.action == "import":
         _import_cookies(args.profile)
         return
     if args.action == "export":
         _export_cookies(args.profile)
+        return
+    if args.action == "import-batch":
+        _import_cookies_batch()
         return
 
     raise ValueError("Unsupported action")

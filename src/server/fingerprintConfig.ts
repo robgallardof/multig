@@ -78,6 +78,8 @@ export function buildCamoufoxOptions(profile: Profile, proxy?: ProxyMeta) {
       "extensions.install.requireBuiltInCerts": false,
       "extensions.install.requireSecureOrigin": false,
       "extensions.langpacks.signatures.required": false,
+      "extensions.allowPrivateBrowsingByDefault": true,
+      "extensions.privatebrowsing.notification": false,
       "xpinstall.signatures.required": false,
       "xpinstall.whitelist.required": false,
       "privacy.clearOnShutdown.cache": false,

@@ -8,7 +8,8 @@ import { LogRepository } from "../../../src/server/logRepository";
 import { AppPaths } from "../../../src/server/paths";
 import { PythonSetup } from "../../../src/server/pythonSetup";
 import { AppConfig } from "../../../src/server/appConfig";
-import { importProfileCookies } from "../../../src/server/cookiesIo";
+import { importProfileCookiesBatch } from "../../../src/server/cookiesIo";
+import type { Profile } from "../../../src/server/profileTypes";
 
 /**
  * GET /api/profiles
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
         : "windows";
       const createdAt = new Date().toISOString();
       const useProxy = body.useProxy !== false;
-      const items = tokens.map(() => ({
+      const items: Array<Omit<Profile, "id"> & { id: string }> = tokens.map(() => ({
         id: crypto.randomUUID(),
         name: buildRandomName(),
         icon: "👤",
@@ -97,12 +98,15 @@ export async function POST(req: Request) {
 
       ProfileRepositorySqlite.createMany(items);
 
-      await Promise.all(items.map(async (item, index) => {
+      await Promise.all(items.map(async item => {
         const profileDir = path.join(AppPaths.profilesDir(), item.id);
         await mkdir(profileDir, { recursive: true });
-        const cookies = [buildWplaceCookie(tokens[index])];
-        importProfileCookies(profileDir, cookies);
       }));
+
+      importProfileCookiesBatch(items.map((item, index) => ({
+        profileDir: path.join(AppPaths.profilesDir(), item.id),
+        cookies: [buildWplaceCookie(tokens[index])],
+      })));
 
       LogRepository.info("Wplace profiles created", { count: items.length });
       const profiles = ProfileRepositorySqlite.list();

@@ -102,6 +102,8 @@ def _ensure_firefox_prefs(profile_dir: Path) -> None:
         "xpinstall.signatures.required": False,
         "extensions.langpacks.signatures.required": False,
         "extensions.webextensions.restrictedDomains": "",
+        "extensions.allowPrivateBrowsingByDefault": True,
+        "extensions.privatebrowsing.notification": False,
     }
     lines = []
     for key, value in prefs.items():
@@ -121,17 +123,20 @@ def _ensure_firefox_prefs(profile_dir: Path) -> None:
                 handle.write(line)
 
 
-def _wplace_script_url() -> str:
-    return os.getenv("WPLACE_TAMPERMONKEY_SCRIPT_URL", "").strip() or WPLACE_SCRIPT_DEFAULT
-
-
-def _wplace_raw_script_url() -> str:
-    install_url = _wplace_script_url()
-    if "#url=" in install_url:
-        raw_url = install_url.split("#url=", 1)[1].strip()
+def _normalize_userscript_url(url: str) -> str:
+    value = (url or "").strip()
+    if not value:
+        return ""
+    if "tampermonkey.net/script_installation.php" in value and "#url=" in value:
+        raw_url = value.split("#url=", 1)[1].strip()
         if raw_url:
             return raw_url
-    return install_url
+    return value
+
+
+def _wplace_script_url() -> str:
+    configured = os.getenv("WPLACE_TAMPERMONKEY_SCRIPT_URL", "").strip() or WPLACE_SCRIPT_DEFAULT
+    return _normalize_userscript_url(configured)
 
 
 def _wplace_marker(profile_dir: Path) -> Path:
@@ -172,14 +177,14 @@ def _close_tampermonkey_welcome(ctx: Camoufox) -> None:
     for page in list(ctx.pages):
         try:
             url = page.url or ""
-            if "tampermonkey.net" in url and "script_installation.php" not in url:
+            if "tampermonkey.net" in url:
                 page.close()
         except Exception:
             continue
 
 
 def _download_userscript(profile_dir: Path) -> Path | None:
-    url = _wplace_raw_script_url()
+    url = _wplace_script_url()
     if not url or not url.startswith(("http://", "https://")):
         return None
     target = profile_dir / "wplace-bot.user.js"
@@ -276,10 +281,6 @@ def _install_wplace_script(ctx: Camoufox, profile_dir: Path, page) -> None:
     install_url = _wplace_script_url()
     _close_tampermonkey_welcome(ctx)
     success = _attempt_install(ctx, page, install_url)
-    if not success and "#url=" in install_url:
-        raw_url = install_url.split("#url=", 1)[1].strip()
-        if raw_url:
-            success = _attempt_install(ctx, page, raw_url)
     if not success:
         local_script = _download_userscript(profile_dir)
         if local_script:
