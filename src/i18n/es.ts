@@ -165,6 +165,12 @@ export const es = {
     wplaceTokenNote: "Pega solo el valor de la cookie (nombre: j). Los perfiles se crean automáticamente.",
     wplaceTokensCount: "{count} tokens detectados",
     selectedCount: "{count} seleccionados",
+    statusCreatingProfile: "Creando perfil...",
+    statusUpdatingProfile: "Actualizando perfil...",
+    statusDeletingProfile: "Eliminando perfil...",
+    statusOpeningProfile: "Abriendo instancia...",
+    statusStoppingProfile: "Deteniendo instancia...",
+    statusRunningSetup: "Preparando entorno...",
   },
   access: {
     title: "Acceso requerido",

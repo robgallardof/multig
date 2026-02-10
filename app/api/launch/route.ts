@@ -7,6 +7,7 @@ import { WebshareSyncService } from "../../../src/server/webshareSyncService";
 import { buildCamoufoxOptions } from "../../../src/server/fingerprintConfig";
 import { LogRepository } from "../../../src/server/logRepository";
 import { AppConfig } from "../../../src/server/appConfig";
+import { ProcessRegistry } from "../../../src/server/processRegistry";
 
 /**
  * POST /api/launch
@@ -105,6 +106,7 @@ export async function POST(req: Request) {
 
     // record last opened
     ProfileRepositorySqlite.update(id, { lastOpenedAt: new Date().toISOString() } as any);
+    ProcessRegistry.register(id, pid, url);
     LogRepository.info("Camoufox launched", {
       profileId: id,
       url,

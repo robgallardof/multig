@@ -60,6 +60,8 @@ export default function HomePage() {
   const [proxyStatus, setProxyStatus] = useState<ApiProxyStatus | null>(null);
   const [toast, setToast] = useState<string>("");
   const [activeProfiles, setActiveProfiles] = useState<Record<string, boolean>>({});
+  const [operationStatus, setOperationStatus] = useState<string>("");
+  const [busyByProfile, setBusyByProfile] = useState<Record<string, boolean>>({});
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
   const [wplaceBotConfigured, setWplaceBotConfigured] = useState(false);
@@ -71,7 +73,6 @@ export default function HomePage() {
   const [profileStatusFilter, setProfileStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [profileProxyFilter, setProfileProxyFilter] = useState<"all" | "assigned" | "pending" | "disabled">("all");
   const [profilePrefsLoaded, setProfilePrefsLoaded] = useState(false);
-  const [activeProfilesLoaded, setActiveProfilesLoaded] = useState(false);
   const [logs, setLogs] = useState<ApiLogEntry[]>([]);
   const [logLevel, setLogLevel] = useState<"all" | "info" | "warn" | "error">("all");
   const [logSearch, setLogSearch] = useState("");
@@ -111,6 +112,39 @@ export default function HomePage() {
       return JSON.parse(text) as T;
     } catch {
       throw new Error(text);
+    }
+  }
+
+
+  /**
+   * Marks one profile action as busy or idle.
+   *
+   * @since 2026-02-10
+   */
+  function setProfileBusy(id: string, isBusy: boolean) {
+    setBusyByProfile((prev) => {
+      if (isBusy) return { ...prev, [id]: true };
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }
+
+  /**
+   * Updates active profile badges from server runtime status.
+   *
+   * @since 2026-02-10
+   */
+  async function refreshRuntimeStatus() {
+    try {
+      const r = await fetch("/api/runtime-status", { cache: "no-store" });
+      if (!r.ok) throw new Error(await r.text());
+      const j = await safeJson<{ activeProfileIds: string[] }>(r);
+      const next: Record<string, boolean> = {};
+      for (const id of j.activeProfileIds || []) next[id] = true;
+      setActiveProfiles(next);
+    } catch (e: any) {
+      void logClient("warn", "Runtime status load failed", String(e?.message || e));
     }
   }
 
@@ -173,9 +207,15 @@ export default function HomePage() {
 
     await loadAppSettings();
     await loadProxyStatus();
+    await refreshRuntimeStatus();
   }
 
   useEffect(() => { void loadAll(); }, []);
+  useEffect(() => {
+    void refreshRuntimeStatus();
+    const intervalId = window.setInterval(() => { void refreshRuntimeStatus(); }, 5000);
+    return () => window.clearInterval(intervalId);
+  }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const raw = window.localStorage.getItem("multig.profilePrefs");
@@ -238,28 +278,6 @@ export default function HomePage() {
       return next;
     });
   }, [profiles]);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const raw = window.localStorage.getItem("multig.activeProfiles");
-    if (!raw) {
-      setActiveProfilesLoaded(true);
-      return;
-    }
-    try {
-      const stored = JSON.parse(raw) as Record<string, boolean>;
-      if (stored && typeof stored === "object") {
-        setActiveProfiles(stored);
-      }
-    } catch {
-      // ignore invalid stored active profiles
-    } finally {
-      setActiveProfilesLoaded(true);
-    }
-  }, []);
-  useEffect(() => {
-    if (!activeProfilesLoaded || typeof window === "undefined") return;
-    window.localStorage.setItem("multig.activeProfiles", JSON.stringify(activeProfiles));
-  }, [activeProfiles, activeProfilesLoaded]);
   useEffect(() => {
     setSelectedProfiles((prev) => {
       const next: Record<string, boolean> = {};
@@ -336,8 +354,14 @@ export default function HomePage() {
     return () => window.clearInterval(id);
   }, [activeTab, logAutoRefresh, logLevel, logSearch]);
 
+  /**
+   * Creates a new profile.
+   *
+   * @since 2026-02-10
+   */
   async function createProfile(values: ProfileModalValues) {
     setBusy(true);
+    setOperationStatus(t.ui.statusCreatingProfile);
     try {
       if (values.wplace?.enabled) {
         if (!system?.venvExists) {
@@ -375,11 +399,13 @@ export default function HomePage() {
       void logClient("error", "Profile create failed", String(e?.message || e), { name: values.name });
     } finally {
       setBusy(false);
+      setOperationStatus("");
     }
   }
 
   async function updateProfile(id: string, values: ProfileModalValues) {
     setBusy(true);
+    setOperationStatus(t.ui.statusUpdatingProfile);
     try {
       const r = await fetch(`/api/profiles/${encodeURIComponent(id)}`, {
         method: "PATCH",
@@ -396,12 +422,14 @@ export default function HomePage() {
       void logClient("error", "Profile update failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
+      setOperationStatus("");
     }
   }
 
   async function deleteProfile(id: string) {
     if (!confirm(`${t.confirm.deleteTitle}\n\n${t.confirm.deleteBody}`)) return;
     setBusy(true);
+    setOperationStatus(t.ui.statusDeletingProfile);
     try {
       const r = await fetch(`/api/profiles/${encodeURIComponent(id)}`, { method: "DELETE" });
       if (!r.ok) throw new Error(await r.text());
@@ -413,9 +441,15 @@ export default function HomePage() {
       void logClient("error", "Profile delete failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
+      setOperationStatus("");
     }
   }
 
+  /**
+   * Launches one profile instance.
+   *
+   * @since 2026-02-10
+   */
   async function openProfile(id: string) {
     if (importingCookies) {
       showToast(t.messages.cookiesImporting);
@@ -431,6 +465,8 @@ export default function HomePage() {
     }
 
     setBusy(true);
+    setProfileBusy(id, true);
+    setOperationStatus(t.ui.statusOpeningProfile);
     try {
       const r = await fetch("/api/launch", {
         method: "POST",
@@ -439,18 +475,27 @@ export default function HomePage() {
       });
       if (!r.ok) throw new Error(await r.text());
       showToast(t.messages.windowOpened);
-      setActiveProfiles((prev) => ({ ...prev, [id]: true }));
+      await refreshRuntimeStatus();
       await loadAll();
     } catch (e: any) {
       showToast(`❌ ${String(e?.message || e)}`);
       void logClient("error", "Profile launch failed", String(e?.message || e), { id, url });
     } finally {
       setBusy(false);
+      setProfileBusy(id, false);
+      setOperationStatus("");
     }
   }
 
+  /**
+   * Stops one running profile instance and releases its proxy assignment.
+   *
+   * @since 2026-02-10
+   */
   async function stopProfile(id: string) {
     setBusy(true);
+    setProfileBusy(id, true);
+    setOperationStatus(t.ui.statusStoppingProfile);
     try {
       const r = await fetch(`/api/profiles/${encodeURIComponent(id)}/release-proxy`, { method: "POST" });
       if (!r.ok) throw new Error(await r.text());
@@ -463,11 +508,14 @@ export default function HomePage() {
       });
       showToast(t.messages.profileStopped);
       await loadProxyStatus();
+      await refreshRuntimeStatus();
     } catch (e: any) {
       showToast(`❌ ${String(e?.message || e)}`);
       void logClient("error", "Profile stop failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
+      setProfileBusy(id, false);
+      setOperationStatus("");
     }
   }
 
@@ -659,6 +707,7 @@ export default function HomePage() {
       void logClient("error", "Cookies export failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
+      setOperationStatus("");
     }
   }
 
@@ -698,8 +747,14 @@ export default function HomePage() {
     }
   }
 
+  /**
+   * Installs/updates Python dependencies for Camoufox execution.
+   *
+   * @since 2026-02-10
+   */
   async function setup() {
     setBusy(true);
+    setOperationStatus(t.ui.statusRunningSetup);
     try {
       const r = await fetch("/api/system/setup", { method: "POST" });
       if (!r.ok) throw new Error(await r.text());
@@ -710,9 +765,15 @@ export default function HomePage() {
       void logClient("error", "Python setup failed", String(e?.message || e));
     } finally {
       setBusy(false);
+      setOperationStatus("");
     }
   }
 
+  /**
+   * Copies one log entry to clipboard.
+   *
+   * @since 2026-02-10
+   */
   async function copyLog(entry: ApiLogEntry) {
     const payload = [
       `[${entry.createdAt}] ${entry.level.toUpperCase()} - ${entry.message}`,
@@ -955,6 +1016,7 @@ export default function HomePage() {
             {t.ui.logsCount.replace("{count}", String(logs.length))}
           </span>
         )}
+        {operationStatus && <span className="badge">⏳ {operationStatus}</span>}
       </div>
 
       {activeTab === "profiles" ? (
@@ -1045,7 +1107,7 @@ export default function HomePage() {
                 onOpen={(id) => void openProfile(id)}
                 onStop={(id) => void stopProfile(id)}
                 isActive={Boolean(activeProfiles[p.id])}
-                disabled={busy || importingCookies || !system?.venvExists}
+                disabled={busy || importingCookies || !system?.venvExists || Boolean(busyByProfile[p.id])}
                 onEdit={(id) => { setEditId(id); setModalOpen(true); }}
                 onDelete={(id) => deleteProfile(id)}
                 onRotate={(id) => rotateProxy(id)}

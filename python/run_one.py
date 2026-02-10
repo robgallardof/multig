@@ -106,8 +106,10 @@ def _ensure_firefox_prefs(profile_dir: Path) -> None:
         "extensions.enabledScopes": 15,
         "extensions.ui.notifyUnsigned": False,
         "xpinstall.signatures.required": False,
+        "xpinstall.enabled": True,
         "extensions.langpacks.signatures.required": False,
         "extensions.webextensions.restrictedDomains": "",
+        "extensions.install.requireSecureOrigin": False,
         "extensions.allowPrivateBrowsingByDefault": True,
         "extensions.privatebrowsing.notification": False,
     }
