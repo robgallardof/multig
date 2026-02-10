@@ -16,6 +16,7 @@ import os
 import re
 import sys
 import time
+import urllib.parse
 import urllib.request
 import zipfile
 import hashlib
@@ -43,6 +44,11 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--proxy-password", required=False, help="Proxy password")
     p.add_argument("--config-json", required=False, help="JSON config for Camoufox fingerprint spoofing")
     p.add_argument("--addon-url", required=False, help="Addon URL (XPI) to preload in the profile")
+    p.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="Install addon/userscript if needed and exit without leaving the browser running.",
+    )
     return p.parse_args()
 
 
@@ -128,10 +134,18 @@ def _normalize_userscript_url(url: str) -> str:
     if not value:
         return ""
     if "tampermonkey.net/script_installation.php" in value and "#url=" in value:
-        raw_url = value.split("#url=", 1)[1].strip()
-        if raw_url:
-            return raw_url
+        encoded = value.split("#url=", 1)[1].strip()
+        if encoded:
+            return urllib.parse.unquote(encoded)
     return value
+
+
+def _tampermonkey_install_url(raw_script_url: str) -> str:
+    target = _normalize_userscript_url(raw_script_url)
+    if not target:
+        return ""
+    encoded = urllib.parse.quote(target, safe=":/%")
+    return f"https://www.tampermonkey.net/script_installation.php#url={encoded}"
 
 
 def _wplace_script_url() -> str:
@@ -278,13 +292,13 @@ def _install_wplace_script(ctx: Camoufox, profile_dir: Path, page) -> None:
     marker = _wplace_marker(profile_dir)
     if marker.exists():
         return
-    install_url = _wplace_script_url()
+    install_url = _tampermonkey_install_url(_wplace_script_url())
     _close_tampermonkey_welcome(ctx)
     success = _attempt_install(ctx, page, install_url)
     if not success:
         local_script = _download_userscript(profile_dir)
         if local_script:
-            success = _attempt_install(ctx, page, local_script.as_uri())
+            success = _attempt_install(ctx, page, _tampermonkey_install_url(local_script.as_uri()))
     page.wait_for_timeout(1500)
     if success:
         marker.write_text("installed")
@@ -338,6 +352,8 @@ def main() -> None:
         _close_tampermonkey_welcome(ctx)
         _close_secondary_pages(ctx, page)
         _inject_wplace_storage(ctx, page)
+        if a.prepare_only:
+            return
         page.goto(a.url)
         try:
             page.evaluate(
