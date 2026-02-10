@@ -264,6 +264,102 @@ def _download_userscript(profile_dir: Path) -> Path | None:
         return None
 
 
+def _get_webext_uuid(profile_dir: Path, addon_id: str) -> str | None:
+    prefs_path = profile_dir / "prefs.js"
+    if not prefs_path.exists():
+        return None
+
+    text = prefs_path.read_text(encoding="utf-8", errors="ignore")
+    match = re.search(r'user_pref\("extensions\.webextensions\.uuids",\s*"(.+)"\);\s*', text)
+    if not match:
+        return None
+
+    raw = match.group(1)
+    raw = raw.replace(r'\"', '"').replace(r"\\", "\\")
+    try:
+        mapping = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(mapping, dict):
+        return None
+    value = mapping.get(addon_id)
+    if not isinstance(value, str) or not value:
+        return None
+    return value
+
+
+def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_path: Path) -> bool:
+    addon_id = "firefox@tampermonkey.net"
+    uuid = _get_webext_uuid(profile_dir, addon_id)
+    if not uuid:
+        return False
+
+    dash_url = f"moz-extension://{uuid}/options.html"
+    page = ctx.pages[0] if ctx.pages else ctx.new_page()
+    try:
+        page.goto(dash_url, wait_until="domcontentloaded")
+    except Exception:
+        return False
+    page.wait_for_timeout(1200)
+
+    try:
+        page.get_by_role(
+            "button",
+            name=re.compile(r"(Add a new script|Add new script|Añadir un nuevo script|Nuevo script)", re.I),
+        ).click(timeout=4000)
+    except Exception:
+        try:
+            page.get_by_text(
+                re.compile(r"(Add a new script|Add new script|Añadir un nuevo script|Nuevo script)", re.I)
+            ).click(timeout=4000)
+        except Exception:
+            return False
+
+    page.wait_for_timeout(800)
+    code = script_path.read_text(encoding="utf-8", errors="ignore")
+
+    pasted = False
+    try:
+        textarea = page.locator("textarea").first
+        textarea.wait_for(state="visible", timeout=3000)
+        textarea.fill(code)
+        pasted = True
+    except Exception:
+        pass
+
+    if not pasted:
+        try:
+            pasted = bool(
+                page.evaluate(
+                    """(code) => {
+                        const cmEl = document.querySelector('.CodeMirror');
+                        if (!cmEl || !cmEl.CodeMirror) return false;
+                        cmEl.CodeMirror.setValue(code);
+                        return true;
+                    }""",
+                    code,
+                )
+            )
+        except Exception:
+            pasted = False
+
+    if not pasted:
+        return False
+
+    try:
+        page.keyboard.press("Control+S")
+    except Exception:
+        pass
+
+    try:
+        page.get_by_role("button", name=re.compile(r"(Save|Guardar)", re.I)).click(timeout=2000)
+    except Exception:
+        pass
+
+    page.wait_for_timeout(1200)
+    return True
+
+
 def _click_install_button(page, timeout_ms: int = 8000) -> bool:
     try:
         button = page.get_by_role(
@@ -387,12 +483,23 @@ def _install_wplace_script(ctx: Camoufox, profile_dir: Path, page) -> None:
     script_url = _wplace_script_url()
     _close_tampermonkey_welcome(ctx)
     page.wait_for_timeout(1500)
+
+    # Preferred deterministic path: download script content and paste it
+    # directly in Tampermonkey dashboard (no user interaction required).
     local_script = _download_userscript(profile_dir)
-    success = False
-    for install_url in _candidate_install_urls(script_url, local_script):
-        success = _attempt_install_with_retries(ctx, page, install_url)
-        if success:
-            break
+    success = bool(local_script and local_script.exists()) and _install_userscript_via_dashboard(
+        ctx,
+        profile_dir,
+        local_script,
+    )
+
+    # Keep URL-based install as fallback only.
+    if not success:
+        for install_url in _candidate_install_urls(script_url, local_script):
+            success = _attempt_install_with_retries(ctx, page, install_url)
+            if success:
+                break
+
     page.wait_for_timeout(1500)
     if success:
         marker.write_text("installed")
