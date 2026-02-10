@@ -289,6 +289,8 @@ def _open_tampermonkey_editor(page, uuid: str) -> bool:
 
 
 def _set_tampermonkey_editor_code(page, code: str) -> bool:
+    normalized = code.replace("\r\n", "\n")
+
     script = """([selector, code]) => {
         const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
 
@@ -302,8 +304,17 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
             for (const cmEl of candidates) {
                 const cm = cmEl.CodeMirror || cmEl.closest('.CodeMirror')?.CodeMirror || null;
                 if (cm && typeof cm.setValue === 'function') {
-                    cm.setValue(code);
+                    const doc = typeof cm.getDoc === 'function' ? cm.getDoc() : null;
+                    if (doc && typeof doc.setValue === 'function') {
+                        doc.setValue(code);
+                    } else {
+                        cm.setValue(code);
+                    }
                     cm.focus();
+                    if (typeof cm.execCommand === 'function') {
+                        cm.execCommand('goDocStart');
+                    }
+                    cm.refresh?.();
                     if (typeof cm.save === 'function') {
                         cm.save();
                     }
@@ -324,9 +335,26 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
     }"""
 
     try:
-        pasted = bool(page.evaluate(script, [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, code]))
+        pasted = bool(page.evaluate(script, [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, normalized]))
         if pasted:
-            return True
+            page.wait_for_timeout(250)
+            check_script = """([selector, expected]) => {
+                const docs = [document, ...Array.from(document.querySelectorAll('iframe')).map((x) => x.contentDocument)].filter(Boolean);
+                for (const doc of docs) {
+                    const container = doc.querySelector(selector) || doc;
+                    const cmEl = container.querySelector('.CodeMirror') || doc.querySelector('.CodeMirror');
+                    const cm = cmEl?.CodeMirror || null;
+                    if (cm && typeof cm.getValue === 'function') {
+                        const value = String(cm.getValue()).replace(/\r\n/g, '\n');
+                        if (value === expected) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }"""
+            if bool(page.evaluate(check_script, [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, normalized])):
+                return True
     except Exception:
         pasted = False
 
@@ -334,7 +362,7 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
     try:
         page.locator(".CodeMirror").first.click(timeout=1500)
         page.keyboard.press("Control+A")
-        page.keyboard.insert_text(code)
+        page.keyboard.insert_text(normalized)
         return True
     except Exception:
         return pasted
@@ -352,13 +380,20 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
 
     code = script_path.read_text(encoding="utf-8", errors="ignore")
 
-    pasted = _set_tampermonkey_editor_code(page, code)
+    pasted = False
+    for _ in range(3):
+        pasted = _set_tampermonkey_editor_code(page, code)
+        if pasted:
+            break
+        page.wait_for_timeout(500)
 
     if not pasted:
         return False
 
     try:
         page.keyboard.press("Control+S")
+        page.wait_for_timeout(250)
+        page.keyboard.press("Meta+S")
     except Exception:
         pass
 
