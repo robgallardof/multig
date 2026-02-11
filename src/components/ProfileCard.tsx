@@ -165,15 +165,15 @@ export function ProfileCard(props: ProfileCardProps) {
           {t.actions.open}
         </span>
         <div className="row" style={{ justifyContent: "flex-end", flex: 1 }}>
-          <button className="btn" onClick={() => props.onOpen(p.id)} disabled={props.disabled}>
-            {t.actions.open}
+          <button className="btn" onClick={() => props.onOpen(p.id)} disabled={props.disabled || props.isActive}>
+            {props.isActive ? t.status.active : t.actions.open}
           </button>
           {props.isActive && (
             <button className="btn danger" onClick={() => props.onStop(p.id)} disabled={props.disabled}>
               {t.actions.stop}
             </button>
           )}
-          <span className="toggleState">{props.isActive ? t.status.active : t.status.inactive}</span>
+          <span className={`toggleState ${props.isActive ? "active" : ""}`}>{props.isActive ? t.status.active : t.status.inactive}</span>
         </div>
       </div>
     </div>

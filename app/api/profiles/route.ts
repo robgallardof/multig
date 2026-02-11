@@ -37,27 +37,36 @@ export async function GET() {
  * @since 2026-01-23
  */
 
-const REFERENCE_EXTENSION_PATHS = [
-  "extensions",
-  "browser-extension-data",
-  "extension-settings.json",
-  "extension-preferences.json",
-  ".wplace_userscript_installed",
-] as const;
+const REFERENCE_PROFILE_EXCLUDE = new Set([
+  "lock",
+  ".parentlock",
+  "parent.lock",
+  "cache2",
+  "startupCache",
+  "minidumps",
+  "crashes",
+]) as ReadonlySet<string>;
 
-async function copyReferenceExtensions(referenceProfileId: string, targetProfileId: string) {
+/**
+ * Copies a reference profile into a new profile while skipping volatile runtime files.
+ *
+ * @since 2026-02-11
+ */
+async function copyReferenceProfileState(referenceProfileId: string, targetProfileId: string) {
   const sourceRoot = path.join(AppPaths.profilesDir(), referenceProfileId);
   const targetRoot = path.join(AppPaths.profilesDir(), targetProfileId);
 
-  for (const relPath of REFERENCE_EXTENSION_PATHS) {
-    const source = path.join(sourceRoot, relPath);
-    const target = path.join(targetRoot, relPath);
-    try {
-      await cp(source, target, { recursive: true, force: true, errorOnExist: false });
-    } catch {
-      // Optional path may not exist in source profile; skip.
-    }
-  }
+  await cp(sourceRoot, targetRoot, {
+    recursive: true,
+    force: true,
+    errorOnExist: false,
+    filter(sourcePath) {
+      const relative = path.relative(sourceRoot, sourcePath);
+      if (!relative || relative === ".") return true;
+      const firstSegment = relative.split(path.sep)[0] || "";
+      return !REFERENCE_PROFILE_EXCLUDE.has(firstSegment);
+    },
+  });
 }
 
 function buildWplaceCookie(value: string) {
@@ -144,7 +153,7 @@ export async function POST(req: Request) {
         const profileDir = path.join(AppPaths.profilesDir(), item.id);
         await mkdir(profileDir, { recursive: true });
         if (referenceProfileId) {
-          await copyReferenceExtensions(referenceProfileId, item.id);
+          await copyReferenceProfileState(referenceProfileId, item.id);
         }
       }));
 

@@ -145,18 +145,16 @@ def _ensure_addon(profile_dir: Path, addon_url: str) -> bool:
 
 
 def _ensure_firefox_prefs(profile_dir: Path) -> None:
+    """
+    Ensures only the minimum extension-related Firefox prefs required for addon loading.
+
+    @since 2026-02-11
+    """
     prefs_path = profile_dir / "user.js"
     prefs = {
         "extensions.autoDisableScopes": 0,
         "extensions.enabledScopes": 15,
-        "extensions.ui.notifyUnsigned": False,
-        "xpinstall.signatures.required": False,
         "xpinstall.enabled": True,
-        "extensions.langpacks.signatures.required": False,
-        "extensions.webextensions.restrictedDomains": "",
-        "extensions.install.requireSecureOrigin": False,
-        "extensions.allowPrivateBrowsingByDefault": True,
-        "extensions.privatebrowsing.notification": False,
     }
     lines = []
     for key, value in prefs.items():
