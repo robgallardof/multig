@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { SettingsRepository } from "../../../../src/server/settingsRepository";
 import type { AppSettings } from "../../../../src/server/settingsTypes";
+import { AppConfig } from "../../../../src/server/appConfig";
 
 type AppSettingsPublic = {
   language: "es" | "en";
   addonUrl: string;
   defaultUrl: string;
   wplaceBotConfigured: boolean;
+  wplaceScriptUrl: string;
 };
 
 const DEFAULT_URL = "https://www.robertogallardo.dev";
@@ -17,6 +19,7 @@ function toPublic(settings: AppSettings): AppSettingsPublic {
     addonUrl: (settings.addonUrl || "").trim(),
     defaultUrl: (settings.defaultUrl || DEFAULT_URL).trim() || DEFAULT_URL,
     wplaceBotConfigured: Boolean(settings.wplaceBotStorage),
+    wplaceScriptUrl: AppConfig.wplaceScriptUrl,
   };
 }
 

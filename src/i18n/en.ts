@@ -43,6 +43,7 @@ export const en = {
     uploadWplaceImage: "Upload Wplace image",
     replaceWplaceImage: "Replace Wplace image",
     clearWplaceImage: "Clear Wplace image",
+    copyWplaceScript: "Copy dist.user.js",
   },
   fields: {
     name: "Name",
@@ -66,6 +67,8 @@ export const en = {
     wplaceTokens: "Wplace tokens (one per line)",
     wplaceTokensPlaceholder: "Paste each token value on its own line or separated by commas",
     useProxy: "Use proxy",
+    referenceProfile: "Base profile (optional)",
+    referenceProfilePlaceholder: "No base profile (use fresh configuration)",
   },
   status: {
     ready: "Ready",
@@ -115,6 +118,8 @@ export const en = {
     wplaceImageCleared: "🧹 Wplace image cleared",
     wplaceImageInvalid: "Please upload a valid image file.",
     wplaceFileInvalid: "Please upload a valid wbot file.",
+    wplaceScriptCopied: "✅ dist.user.js copied",
+    wplaceScriptCopyFailed: "❌ Could not copy dist.user.js",
     logCopied: "✅ Log copied",
     logCopyFailed: "❌ Could not copy log",
     settingsSaved: "✅ Settings saved",
@@ -164,6 +169,7 @@ export const en = {
     noProxyNote: "This profile will launch without a proxy.",
     wplaceTokenNote: "Paste only the cookie value (name: j). Profiles are created automatically.",
     wplaceTokensCount: "{count} tokens detected",
+    wplaceReferenceNote: "If you select a base profile, its extensions/extension settings are copied. Wplace token and cookies are overwritten per instance.",
     selectedCount: "{count} selected",
     statusCreatingProfile: "Creating profile...",
     statusUpdatingProfile: "Updating profile...",
