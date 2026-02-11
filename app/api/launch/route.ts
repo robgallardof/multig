@@ -86,9 +86,7 @@ export async function POST(req: Request) {
     }
     if (AppConfig.wplaceEnabled && settings.wplaceBotStorage) {
       extraEnv.WPLACE_WBOT_STORAGE = settings.wplaceBotStorage;
-      extraEnv.WPLACE_ENABLED = "1";
     }
-
     const pid = CamoufoxLauncher.launch(
       id,
       url,

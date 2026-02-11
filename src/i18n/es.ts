@@ -43,6 +43,7 @@ export const es = {
     uploadWplaceImage: "Subir imagen Wplace",
     replaceWplaceImage: "Reemplazar imagen Wplace",
     clearWplaceImage: "Quitar imagen Wplace",
+    copyWplaceScript: "Copiar dist.user.js",
   },
   fields: {
     name: "Nombre",
@@ -115,6 +116,8 @@ export const es = {
     wplaceImageCleared: "🧹 Imagen Wplace eliminada",
     wplaceImageInvalid: "Sube un archivo de imagen válido.",
     wplaceFileInvalid: "Sube un archivo wbot válido.",
+    wplaceScriptCopied: "✅ dist.user.js copiado",
+    wplaceScriptCopyFailed: "❌ No se pudo copiar dist.user.js",
     logCopied: "✅ Log copiado",
     logCopyFailed: "❌ No se pudo copiar el log",
     settingsSaved: "✅ Configuración guardada",

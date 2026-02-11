@@ -43,6 +43,7 @@ export const en = {
     uploadWplaceImage: "Upload Wplace image",
     replaceWplaceImage: "Replace Wplace image",
     clearWplaceImage: "Clear Wplace image",
+    copyWplaceScript: "Copy dist.user.js",
   },
   fields: {
     name: "Name",
@@ -115,6 +116,8 @@ export const en = {
     wplaceImageCleared: "🧹 Wplace image cleared",
     wplaceImageInvalid: "Please upload a valid image file.",
     wplaceFileInvalid: "Please upload a valid wbot file.",
+    wplaceScriptCopied: "✅ dist.user.js copied",
+    wplaceScriptCopyFailed: "❌ Could not copy dist.user.js",
     logCopied: "✅ Log copied",
     logCopyFailed: "❌ Could not copy log",
     settingsSaved: "✅ Settings saved",

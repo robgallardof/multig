@@ -66,6 +66,7 @@ export default function HomePage() {
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
   const [wplaceBotConfigured, setWplaceBotConfigured] = useState(false);
   const [wplaceBotUploading, setWplaceBotUploading] = useState(false);
+  const [wplaceScriptCopying, setWplaceScriptCopying] = useState(false);
   const [cookieImportProfileId, setCookieImportProfileId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"profiles" | "logs">("profiles");
   const [profileSearch, setProfileSearch] = useState("");
@@ -168,6 +169,7 @@ export default function HomePage() {
         addonUrl?: string;
         defaultUrl?: string;
         wplaceBotConfigured?: boolean;
+        wplaceScriptUrl?: string;
       }>(r);
       setLanguage(j.language === "en" ? "en" : "es");
       setAddonUrl(j.addonUrl || "");
@@ -660,6 +662,23 @@ export default function HomePage() {
     }
   }
 
+
+  async function copyWplaceUserscript() {
+    setWplaceScriptCopying(true);
+    try {
+      const r = await fetch("/api/wplace/userscript", { cache: "no-store" });
+      if (!r.ok) throw new Error(await r.text());
+      const script = await r.text();
+      await navigator.clipboard.writeText(script);
+      showToast(t.messages.wplaceScriptCopied);
+    } catch (err: any) {
+      showToast(t.messages.wplaceScriptCopyFailed);
+      void logClient("error", "Wplace userscript copy failed", String(err?.message || err));
+    } finally {
+      setWplaceScriptCopying(false);
+    }
+  }
+
   async function clearWplaceImage() {
     setWplaceBotUploading(true);
     try {
@@ -935,6 +954,14 @@ export default function HomePage() {
 
           {system?.wplaceEnabled && (
             <div className="row">
+              <button
+                className="btn secondary"
+                onClick={() => void copyWplaceUserscript()}
+                disabled={wplaceScriptCopying}
+                title={t.actions.copyWplaceScript}
+              >
+                <span className="row"><EmojiIcon symbol="📋" label="copy" size={16} />{t.actions.copyWplaceScript}</span>
+              </button>
               <button
                 className="btn secondary"
                 onClick={() => wplaceFileInputRef.current?.click()}

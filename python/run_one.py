@@ -867,7 +867,6 @@ def _run_context(
             return
         _close_tampermonkey_welcome(ctx)
         _close_secondary_pages(ctx, page)
-        _inject_wplace_storage(ctx, page)
         page.goto(target_url)
         try:
             page.evaluate(
@@ -942,7 +941,7 @@ def main() -> None:
         a.url,
         headless,
         prepare_only=bool(a.prepare_only),
-        install_userscript=True,
+        install_userscript=False,
     )
     _log("INFO", "Camoufox runner finished", profile=str(profile_dir))
 
