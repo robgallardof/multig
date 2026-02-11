@@ -376,6 +376,7 @@ export default function HomePage() {
           body: JSON.stringify({
             mode: "wplace",
             tokens: values.wplace.tokens,
+            referenceProfileId: values.wplace.referenceProfileId,
             osType: values.osType,
             useProxy: values.useProxy,
           }),
@@ -1271,6 +1272,7 @@ export default function HomePage() {
           useProxy: editing?.useProxy ?? true,
         }}
         allowWplace={Boolean(system?.wplaceEnabled)}
+        referenceProfiles={profiles.map((p) => ({ id: p.id, name: p.name }))}
         onClose={() => setModalOpen(false)}
         onSubmit={(values) => {
           setModalOpen(false);

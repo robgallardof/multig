@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import path from "node:path";
-import { mkdir } from "node:fs/promises";
+import { cp, mkdir } from "node:fs/promises";
 import { ProfileRepositorySqlite } from "../../../src/server/profileRepositorySqlite";
 import { listPublicProfiles } from "../../../src/server/profilePresenter";
 import { LogRepository } from "../../../src/server/logRepository";
@@ -13,6 +13,7 @@ import type { Profile } from "../../../src/server/profileTypes";
 import { CamoufoxLauncher } from "../../../src/server/camoufoxLauncher";
 import { buildCamoufoxOptions } from "../../../src/server/fingerprintConfig";
 import { SettingsRepository } from "../../../src/server/settingsRepository";
+import { ProxyAssignmentService } from "../../../src/server/proxyAssignmentService";
 
 /**
  * GET /api/profiles
@@ -35,6 +36,30 @@ export async function GET() {
  *
  * @since 2026-01-23
  */
+
+const REFERENCE_EXTENSION_PATHS = [
+  "extensions",
+  "browser-extension-data",
+  "extension-settings.json",
+  "extension-preferences.json",
+  ".wplace_userscript_installed",
+] as const;
+
+async function copyReferenceExtensions(referenceProfileId: string, targetProfileId: string) {
+  const sourceRoot = path.join(AppPaths.profilesDir(), referenceProfileId);
+  const targetRoot = path.join(AppPaths.profilesDir(), targetProfileId);
+
+  for (const relPath of REFERENCE_EXTENSION_PATHS) {
+    const source = path.join(sourceRoot, relPath);
+    const target = path.join(targetRoot, relPath);
+    try {
+      await cp(source, target, { recursive: true, force: true, errorOnExist: false });
+    } catch {
+      // Optional path may not exist in source profile; skip.
+    }
+  }
+}
+
 function buildWplaceCookie(value: string) {
   return {
     name: "j",
@@ -65,6 +90,7 @@ export async function POST(req: Request) {
       osType?: string;
       tokens?: string[];
       useProxy?: boolean;
+      referenceProfileId?: string;
     };
 
     if (body.mode === "wplace") {
@@ -89,6 +115,13 @@ export async function POST(req: Request) {
         : "windows";
       const createdAt = new Date().toISOString();
       const useProxy = body.useProxy !== false;
+      const referenceProfileId = typeof body.referenceProfileId === "string" ? body.referenceProfileId.trim() : "";
+      if (referenceProfileId) {
+        const referenceProfile = ProfileRepositorySqlite.getById(referenceProfileId);
+        if (!referenceProfile) {
+          return NextResponse.json({ error: "reference profile not found", profiles: [] }, { status: 400 });
+        }
+      }
       const items: Array<Omit<Profile, "id"> & { id: string }> = tokens.map(() => ({
         id: crypto.randomUUID(),
         name: buildRandomName(),
@@ -101,9 +134,18 @@ export async function POST(req: Request) {
 
       ProfileRepositorySqlite.createMany(items);
 
+      // New profile ids must never inherit proxy assignment from any reference profile.
+      // We only clone extension artifacts; proxy IP is resolved independently per profile.
+      for (const item of items) {
+        ProxyAssignmentService.release(item.id);
+      }
+
       await Promise.all(items.map(async item => {
         const profileDir = path.join(AppPaths.profilesDir(), item.id);
         await mkdir(profileDir, { recursive: true });
+        if (referenceProfileId) {
+          await copyReferenceExtensions(referenceProfileId, item.id);
+        }
       }));
 
       importProfileCookiesBatch(items.map((item, index) => ({
@@ -136,7 +178,7 @@ export async function POST(req: Request) {
         }
       }
 
-      LogRepository.info("Wplace profiles created", { count: items.length, preparedCount });
+      LogRepository.info("Wplace profiles created", { count: items.length, preparedCount, referenceProfileId: referenceProfileId || null });
       const profiles = ProfileRepositorySqlite.list();
       return NextResponse.json({ profiles: listPublicProfiles(profiles) });
     }

@@ -67,6 +67,8 @@ export const en = {
     wplaceTokens: "Wplace tokens (one per line)",
     wplaceTokensPlaceholder: "Paste each token value on its own line or separated by commas",
     useProxy: "Use proxy",
+    referenceProfile: "Base profile (optional)",
+    referenceProfilePlaceholder: "No base profile (use fresh configuration)",
   },
   status: {
     ready: "Ready",
@@ -167,6 +169,7 @@ export const en = {
     noProxyNote: "This profile will launch without a proxy.",
     wplaceTokenNote: "Paste only the cookie value (name: j). Profiles are created automatically.",
     wplaceTokensCount: "{count} tokens detected",
+    wplaceReferenceNote: "If you select a base profile, its extensions/extension settings are copied. Wplace token and cookies are overwritten per instance.",
     selectedCount: "{count} selected",
     statusCreatingProfile: "Creating profile...",
     statusUpdatingProfile: "Updating profile...",

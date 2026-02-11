@@ -25,6 +25,7 @@ export type ProfileModalValues = {
   wplace?: {
     enabled: boolean;
     tokens: string[];
+    referenceProfileId?: string;
   };
 };
 
@@ -39,6 +40,7 @@ export type ProfileModalProps = {
   title: string;
   initial: ProfileModalValues;
   allowWplace: boolean;
+  referenceProfiles: Array<{ id: string; name: string }>;
   onClose: () => void;
   onSubmit: (values: ProfileModalValues) => void;
   t: Translations;
@@ -60,6 +62,7 @@ export function ProfileModal(props: ProfileModalProps) {
   const [useProxy, setUseProxy] = React.useState(props.initial.useProxy);
   const [wplaceEnabled, setWplaceEnabled] = React.useState(false);
   const [wplaceTokens, setWplaceTokens] = React.useState("");
+  const [referenceProfileId, setReferenceProfileId] = React.useState("");
 
   React.useEffect(() => {
     setName(props.initial.name);
@@ -69,6 +72,7 @@ export function ProfileModal(props: ProfileModalProps) {
     setUseProxy(props.initial.useProxy);
     setWplaceEnabled(false);
     setWplaceTokens("");
+    setReferenceProfileId("");
   }, [props.initial.name, props.initial.icon, props.initial.url, props.initial.osType, props.initial.useProxy, props.isOpen]);
 
   if (!props.isOpen) return null;
@@ -128,6 +132,21 @@ export function ProfileModal(props: ProfileModalProps) {
                 {t.ui.wplaceTokensCount.replace("{count}", String(tokenList.length))}
               </p>
             </div>
+
+            <label className="label">{t.fields.referenceProfile}</label>
+            <select
+              className="input"
+              value={referenceProfileId}
+              onChange={(e) => setReferenceProfileId(e.target.value)}
+            >
+              <option value="">{t.fields.referenceProfilePlaceholder}</option>
+              {props.referenceProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>{profile.name}</option>
+              ))}
+            </select>
+            <div className="card" style={{ marginTop: 8 }}>
+              <p className="small" style={{ margin: 0 }}>{t.ui.wplaceReferenceNote}</p>
+            </div>
           </>
         ) : (
           <>
@@ -185,7 +204,7 @@ export function ProfileModal(props: ProfileModalProps) {
                 osType,
                 useProxy,
                 wplace: props.mode === "create" && wplaceEnabled
-                  ? { enabled: true, tokens: tokenList }
+                  ? { enabled: true, tokens: tokenList, referenceProfileId: referenceProfileId || undefined }
                   : undefined,
               })}
             disabled={!canSave}
