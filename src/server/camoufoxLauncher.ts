@@ -1,5 +1,4 @@
 import path from "node:path";
-import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { spawnSync } from "node:child_process";
 import { AppPaths } from "./paths";
@@ -61,17 +60,6 @@ export class CamoufoxLauncher {
 
   private static shouldUseDetachedMode(): boolean {
     const raw = String(process.env.CAMOUFOX_DETACHED ?? "").trim().toLowerCase();
-    return raw === "1" || raw === "true" || raw === "yes";
-  }
-
-  private static shouldPrepareProfile(profileId: string): boolean {
-    const profileDir = path.join(AppPaths.profilesDir(), profileId);
-    const marker = path.join(profileDir, ".wplace_userscript_installed");
-    return !fs.existsSync(marker);
-  }
-
-  private static forcePrepareProfile(): boolean {
-    const raw = String(process.env.CAMOUFOX_FORCE_PREPARE ?? "").trim().toLowerCase();
     return raw === "1" || raw === "true" || raw === "yes";
   }
 
@@ -150,24 +138,6 @@ export class CamoufoxLauncher {
     const py = PythonSetup.python();
 
     const profileDir = path.join(AppPaths.profilesDir(), profileId);
-
-    const mustPrepare = CamoufoxLauncher.forcePrepareProfile() || CamoufoxLauncher.shouldPrepareProfile(profileId);
-    if (mustPrepare) {
-      const prepared = CamoufoxLauncher.prepareProfile(
-        profileId,
-        url,
-        config,
-        addonUrl,
-        extraEnv
-      );
-      if (!prepared) {
-        LogRepository.error("Camoufox launch blocked: profile preparation failed", undefined, {
-          profileId,
-          url,
-        });
-        return -1;
-      }
-    }
 
     const args = ["-u", AppPaths.runOnePy(), "--profile", profileDir, "--url", url];
 
