@@ -47,6 +47,13 @@ const osDefaults = {
   },
 } as const;
 
+/**
+ * Builds Camoufox runtime options for a profile.
+ *
+ * Keeps extension-related prefs minimal to avoid overriding reference profile state.
+ *
+ * @since 2026-02-11
+ */
 export function buildCamoufoxOptions(profile: Profile, proxy?: ProxyMeta) {
   const osType = profile.osType ?? "windows";
   const os = osDefaults[osType] ?? osDefaults.windows;
@@ -63,7 +70,7 @@ export function buildCamoufoxOptions(profile: Profile, proxy?: ProxyMeta) {
     os: camoufoxOs,
     fonts: os.fonts,
     locale: locale.locale,
-    humanize: true,
+    humanize: false,
     devtools: AppConfig.devtoolsEnabled,
     firefox_user_prefs: {
       "browser.privatebrowsing.autostart": false,
@@ -72,23 +79,9 @@ export function buildCamoufoxOptions(profile: Profile, proxy?: ProxyMeta) {
       "browser.tabs.warnOnClose": false,
       "browser.tabs.warnOnCloseOtherTabs": false,
       "dom.disable_window_move_resize": false,
-      "extensions.webextensions.restrictedDomains": "",
       "extensions.autoDisableScopes": 0,
       "extensions.enabledScopes": 15,
-      "extensions.sideloading.enabled": true,
-      "extensions.install.requireBuiltInCerts": false,
-      "extensions.install.requireSecureOrigin": false,
       "xpinstall.enabled": true,
-      "extensions.langpacks.signatures.required": false,
-      "extensions.allowPrivateBrowsingByDefault": true,
-      "extensions.privatebrowsing.notification": false,
-      "xpinstall.signatures.required": false,
-      "xpinstall.whitelist.required": false,
-      "privacy.clearOnShutdown.cache": false,
-      "privacy.clearOnShutdown.cookies": false,
-      "privacy.clearOnShutdown.offlineApps": false,
-      "privacy.clearOnShutdown.sessions": false,
-      "privacy.sanitize.sanitizeOnShutdown": false,
     },
   };
 }

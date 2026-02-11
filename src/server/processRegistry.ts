@@ -74,11 +74,26 @@ export class ProcessRegistry {
    *
    * @since 2026-02-10
    */
-  private static isPidAlive(pid: number): boolean {
+  private static hasExpectedProcessCommand(pid: number, profileId: string): boolean {
+    if (process.platform !== "linux") return true;
+    try {
+      const cmdlinePath = `/proc/${pid}/cmdline`;
+      if (!fs.existsSync(cmdlinePath)) return false;
+      const raw = fs.readFileSync(cmdlinePath, "utf8");
+      if (!raw) return false;
+      const normalized = raw.replace(/\u0000/g, " ").toLowerCase();
+      if (!normalized.includes("run_one.py")) return false;
+      return normalized.includes(profileId.toLowerCase());
+    } catch {
+      return false;
+    }
+  }
+
+  private static isPidAliveForProfile(pid: number, profileId: string): boolean {
     if (!Number.isInteger(pid) || pid <= 0) return false;
     try {
       process.kill(pid, 0);
-      return true;
+      return ProcessRegistry.hasExpectedProcessCommand(pid, profileId);
     } catch {
       return false;
     }
@@ -95,7 +110,7 @@ export class ProcessRegistry {
     const active: string[] = [];
 
     for (const [profileId, entry] of Object.entries(state.processes)) {
-      if (ProcessRegistry.isPidAlive(entry.pid)) {
+      if (ProcessRegistry.isPidAliveForProfile(entry.pid, profileId)) {
         active.push(profileId);
         continue;
       }
@@ -119,7 +134,7 @@ export class ProcessRegistry {
     if (!entry) return false;
 
     let stopped = false;
-    if (ProcessRegistry.isPidAlive(entry.pid)) {
+    if (ProcessRegistry.isPidAliveForProfile(entry.pid, profileId)) {
       try {
         process.kill(entry.pid, "SIGTERM");
         stopped = true;

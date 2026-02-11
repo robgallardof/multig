@@ -215,8 +215,20 @@ export default function HomePage() {
   useEffect(() => { void loadAll(); }, []);
   useEffect(() => {
     void refreshRuntimeStatus();
-    const intervalId = window.setInterval(() => { void refreshRuntimeStatus(); }, 5000);
+    const intervalId = window.setInterval(() => { void refreshRuntimeStatus(); }, 2000);
     return () => window.clearInterval(intervalId);
+  }, []);
+  useEffect(() => {
+    function onWindowAttention() {
+      void refreshRuntimeStatus();
+    }
+
+    window.addEventListener("focus", onWindowAttention);
+    document.addEventListener("visibilitychange", onWindowAttention);
+    return () => {
+      window.removeEventListener("focus", onWindowAttention);
+      document.removeEventListener("visibilitychange", onWindowAttention);
+    };
   }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -477,6 +489,7 @@ export default function HomePage() {
         body: JSON.stringify({ id, url, proxyId: p?.proxyId }),
       });
       if (!r.ok) throw new Error(await r.text());
+      setActiveProfiles((prev) => ({ ...prev, [id]: true }));
       showToast(t.messages.windowOpened);
       await refreshRuntimeStatus();
       await loadAll();
