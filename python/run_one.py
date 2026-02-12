@@ -861,10 +861,10 @@ def _run_context(
                 _install_wplace_script(ctx, profile_dir, page)
             _close_tampermonkey_welcome(ctx)
             _close_secondary_pages(ctx, page)
-            _inject_wplace_storage(ctx, page)
             return
         _close_tampermonkey_welcome(ctx)
         _close_secondary_pages(ctx, page)
+        _inject_wplace_storage(ctx, page)
         page.goto(target_url)
         try:
             page.evaluate(
