@@ -11,7 +11,7 @@ import { AppConfig } from "../../../src/server/appConfig";
 import { importProfileCookiesBatch } from "../../../src/server/cookiesIo";
 import type { Profile } from "../../../src/server/profileTypes";
 import { CamoufoxLauncher } from "../../../src/server/camoufoxLauncher";
-import { buildCamoufoxOptions } from "../../../src/server/fingerprintConfig";
+import { buildCamoufoxOptions, buildPawtectContextProfile } from "../../../src/server/fingerprintConfig";
 import { SettingsRepository } from "../../../src/server/settingsRepository";
 import { ProxyAssignmentService } from "../../../src/server/proxyAssignmentService";
 
@@ -163,18 +163,22 @@ export async function POST(req: Request) {
       })));
 
       const settings = await SettingsRepository.load();
-      const extraEnv: Record<string, string> = {};
+      const sharedEnv: Record<string, string> = {};
       if (AppConfig.wplaceScriptUrl) {
-        extraEnv.WPLACE_TAMPERMONKEY_SCRIPT_URL = AppConfig.wplaceScriptUrl;
+        sharedEnv.WPLACE_TAMPERMONKEY_SCRIPT_URL = AppConfig.wplaceScriptUrl;
       }
       if (AppConfig.wplaceEnabled && settings.wplaceBotStorage) {
-        extraEnv.WPLACE_WBOT_STORAGE = settings.wplaceBotStorage;
-        extraEnv.WPLACE_ENABLED = "1";
+        sharedEnv.WPLACE_WBOT_STORAGE = settings.wplaceBotStorage;
+        sharedEnv.WPLACE_ENABLED = "1";
       }
 
       let preparedCount = 0;
       for (const item of items) {
         const options = buildCamoufoxOptions(item);
+        const extraEnv = {
+          ...sharedEnv,
+          WPLACE_PAWTECT_CONTEXT_PROFILE_JSON: JSON.stringify(buildPawtectContextProfile(item)),
+        };
         const prepared = CamoufoxLauncher.prepareProfile(
           item.id,
           "https://wplace.live",

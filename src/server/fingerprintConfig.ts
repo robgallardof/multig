@@ -13,6 +13,8 @@ type ProxyMeta = {
   cityName?: string;
 };
 
+type PawtectContextProfile = Record<string, string | number | boolean | Array<string> | null>;
+
 const localeByCountry: Record<string, LocaleConfig> = {
   AR: { locale: "es-AR", language: "es-AR", timezone: "America/Argentina/Buenos_Aires", acceptLanguage: "es-AR,es;q=0.9,en;q=0.8" },
   BR: { locale: "pt-BR", language: "pt-BR", timezone: "America/Sao_Paulo", acceptLanguage: "pt-BR,pt;q=0.9,en;q=0.8" },
@@ -83,5 +85,42 @@ export function buildCamoufoxOptions(profile: Profile, proxy?: ProxyMeta) {
       "extensions.enabledScopes": 15,
       "xpinstall.enabled": true,
     },
+  };
+}
+
+/**
+ * Builds a compact profile payload that can be injected in runtime scripts
+ * requiring deterministic browser context values (e.g. pawtect helpers).
+ *
+ * @since 2026-02-18
+ */
+export function buildPawtectContextProfile(profile: Profile, proxy?: ProxyMeta): PawtectContextProfile {
+  const osType = profile.osType ?? "windows";
+  const os = osDefaults[osType] ?? osDefaults.windows;
+  const countryCode = proxy?.countryCode ? proxy.countryCode.toUpperCase() : "US";
+  const locale = localeByCountry[countryCode] ?? {
+    locale: "en-US",
+    language: "en-US",
+    timezone: "UTC",
+    acceptLanguage: "en-US,en;q=0.9",
+  };
+
+  const [language, region = "US"] = locale.locale.split("-");
+
+  return {
+    timezone: locale.timezone,
+    "locale:language": language,
+    "locale:region": region,
+    "headers.User-Agent": os.userAgent,
+    "headers.Accept-Language": locale.acceptLanguage,
+    "navigator.userAgent": os.userAgent,
+    "navigator.language": locale.language,
+    "navigator.languages": [locale.language, language],
+    "navigator.platform": os.platform,
+    "navigator.hardwareConcurrency": 8,
+    "navigator.maxTouchPoints": osType === "windows" ? 1 : 0,
+    "navigator.doNotTrack": "1",
+    "proxy:countryCode": countryCode,
+    "proxy:cityName": proxy?.cityName || "",
   };
 }

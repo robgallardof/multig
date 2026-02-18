@@ -224,6 +224,80 @@ def _inject_wplace_storage(ctx: Camoufox, page) -> None:
         pass
 
 
+def _pawtect_context_profile() -> dict:
+    raw = os.getenv("WPLACE_PAWTECT_CONTEXT_PROFILE_JSON", "").strip()
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        _log("WARN", "Invalid WPLACE_PAWTECT_CONTEXT_PROFILE_JSON")
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def _build_pawtect_init_script(profile: dict) -> str:
+    nav = {
+        "language": profile.get("navigator.language"),
+        "languages": profile.get("navigator.languages"),
+        "platform": profile.get("navigator.platform"),
+        "hardwareConcurrency": profile.get("navigator.hardwareConcurrency"),
+        "maxTouchPoints": profile.get("navigator.maxTouchPoints"),
+        "doNotTrack": profile.get("navigator.doNotTrack"),
+    }
+    webgl_vendor = profile.get("webGl:vendor")
+    webgl_renderer = profile.get("webGl:renderer")
+    serialized_profile = json.dumps(profile, ensure_ascii=False)
+
+    return f"""
+(() => {{
+  try {{
+    const nav = {json.dumps(nav, ensure_ascii=False)};
+    const setNav = (k, v) => {{
+      if (v === undefined || v === null) return;
+      try {{ Object.defineProperty(navigator, k, {{ get: () => v, configurable: true }}); }} catch (_) {{}}
+    }};
+    Object.keys(nav).forEach((k) => setNav(k, nav[k]));
+
+    const spoofVendor = {json.dumps(webgl_vendor, ensure_ascii=False)};
+    const spoofRenderer = {json.dumps(webgl_renderer, ensure_ascii=False)};
+    if (spoofVendor || spoofRenderer) {{
+      const patch = (proto) => {{
+        if (!proto || !proto.getParameter) return;
+        const orig = proto.getParameter;
+        proto.getParameter = function(param) {{
+          if (param === 0x9245 && spoofVendor) return spoofVendor;
+          if (param === 0x9246 && spoofRenderer) return spoofRenderer;
+          return orig.call(this, param);
+        }};
+      }};
+      patch(typeof WebGLRenderingContext !== 'undefined' ? WebGLRenderingContext.prototype : null);
+      patch(typeof WebGL2RenderingContext !== 'undefined' ? WebGL2RenderingContext.prototype : null);
+    }}
+
+    window.__WPLACE_PAWTECT_CONTEXT__ = {serialized_profile};
+  }} catch (_) {{}}
+}})();
+"""
+
+
+def _inject_pawtect_context(page) -> None:
+    profile = _pawtect_context_profile()
+    if not profile:
+        return
+    script = _build_pawtect_init_script(profile)
+    try:
+        page.add_init_script(script)
+    except Exception:
+        pass
+    try:
+        page.evaluate("value => localStorage.setItem('pawtect_context', value)", json.dumps(profile, ensure_ascii=False))
+    except Exception:
+        pass
+
+
 def _close_tampermonkey_welcome(ctx: Camoufox) -> None:
     for page in list(ctx.pages):
         try:
@@ -865,6 +939,7 @@ def _run_context(
         _close_tampermonkey_welcome(ctx)
         _close_secondary_pages(ctx, page)
         _inject_wplace_storage(ctx, page)
+        _inject_pawtect_context(page)
         page.goto(target_url)
         try:
             page.evaluate(
