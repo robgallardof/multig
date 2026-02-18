@@ -471,8 +471,9 @@ export default function HomePage() {
       return;
     }
     const p = profiles.find(x => x.id === id);
+    const profileUrl = p?.url?.trim() ?? "";
     const normalizedDefaultUrl = defaultUrl.trim();
-    const url = normalizedDefaultUrl || (p?.url?.trim() ?? "");
+    const url = profileUrl || normalizedDefaultUrl;
 
     if (!system?.venvExists) {
       showToast(t.messages.setupRequired);
