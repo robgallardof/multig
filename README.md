@@ -107,6 +107,7 @@ Variables útiles:
 - `WPLACE_TAMPERMONKEY_SCRIPT_URL`: URL del userscript (URL directa al `.user.js`).
 - `WPLACE_ENABLED`: habilita inyección de storage de Wplace (`1/true/yes`).
 - `WPLACE_WBOT_STORAGE`: JSON serializado para guardar en `localStorage['wbot']`.
+- `WPLACE_PAWTECT_CONTEXT_PROFILE_JSON`: JSON de contexto por instancia (UA/locale/navigator, etc.) que se inyecta como init script y en `localStorage['pawtect_context']`.
 
 ---
 

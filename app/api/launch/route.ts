@@ -4,7 +4,7 @@ import { ProfileRepositorySqlite } from "../../../src/server/profileRepositorySq
 import { ProxyAssignmentService } from "../../../src/server/proxyAssignmentService";
 import { SettingsRepository } from "../../../src/server/settingsRepository";
 import { WebshareSyncService } from "../../../src/server/webshareSyncService";
-import { buildCamoufoxOptions } from "../../../src/server/fingerprintConfig";
+import { buildCamoufoxOptions, buildPawtectContextProfile } from "../../../src/server/fingerprintConfig";
 import { LogRepository } from "../../../src/server/logRepository";
 import { AppConfig } from "../../../src/server/appConfig";
 import { ProcessRegistry } from "../../../src/server/processRegistry";
@@ -81,6 +81,9 @@ export async function POST(req: Request) {
     const proxyPassword = settings.webshare?.password;
     const camoufoxOptions = buildCamoufoxOptions(profile, assigned ?? undefined);
     const extraEnv: Record<string, string> = {};
+    extraEnv.WPLACE_PAWTECT_CONTEXT_PROFILE_JSON = JSON.stringify(
+      buildPawtectContextProfile(profile, assigned ?? undefined)
+    );
     if (AppConfig.wplaceScriptUrl) {
       extraEnv.WPLACE_TAMPERMONKEY_SCRIPT_URL = AppConfig.wplaceScriptUrl;
     }
