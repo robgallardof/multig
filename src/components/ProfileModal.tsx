@@ -25,6 +25,7 @@ export type ProfileModalValues = {
   wplace?: {
     enabled: boolean;
     tokens: string[];
+    cookies?: unknown[];
     referenceProfileId?: string;
   };
 };
@@ -62,6 +63,7 @@ export function ProfileModal(props: ProfileModalProps) {
   const [useProxy, setUseProxy] = React.useState(props.initial.useProxy);
   const [wplaceEnabled, setWplaceEnabled] = React.useState(false);
   const [wplaceTokens, setWplaceTokens] = React.useState("");
+  const [wplaceCookiesRaw, setWplaceCookiesRaw] = React.useState("");
   const [referenceProfileId, setReferenceProfileId] = React.useState("");
 
   React.useEffect(() => {
@@ -72,6 +74,7 @@ export function ProfileModal(props: ProfileModalProps) {
     setUseProxy(props.initial.useProxy);
     setWplaceEnabled(false);
     setWplaceTokens("");
+    setWplaceCookiesRaw("");
     setReferenceProfileId("");
   }, [props.initial.name, props.initial.icon, props.initial.url, props.initial.osType, props.initial.useProxy, props.isOpen]);
 
@@ -81,8 +84,19 @@ export function ProfileModal(props: ProfileModalProps) {
     .split(/[,\r\n]+/g)
     .map((token) => token.trim())
     .filter(Boolean);
+  const parsedWplaceCookies = React.useMemo(() => {
+    const source = wplaceCookiesRaw.trim();
+    if (!source) return { cookies: [] as unknown[], error: "" };
+    try {
+      const parsed = JSON.parse(source);
+      if (!Array.isArray(parsed)) return { cookies: [] as unknown[], error: t.messages.cookiesInvalid };
+      return { cookies: parsed, error: "" };
+    } catch {
+      return { cookies: [] as unknown[], error: t.messages.cookiesInvalid };
+    }
+  }, [wplaceCookiesRaw, t.messages.cookiesInvalid]);
   const canSave = props.mode === "create" && wplaceEnabled
-    ? tokenList.length > 0
+    ? tokenList.length > 0 || parsedWplaceCookies.cookies.length > 0
     : name.trim().length > 0;
 
   return (
@@ -124,12 +138,29 @@ export function ProfileModal(props: ProfileModalProps) {
               onChange={(e) => setWplaceTokens(e.target.value)}
               placeholder={t.fields.wplaceTokensPlaceholder}
             />
+            <label className="label" style={{ marginTop: 12 }}>{t.fields.wplaceCookies}</label>
+            <textarea
+              className="input"
+              rows={6}
+              value={wplaceCookiesRaw}
+              onChange={(e) => setWplaceCookiesRaw(e.target.value)}
+              placeholder={t.fields.wplaceCookiesPlaceholder}
+            />
+            {parsedWplaceCookies.error && (
+              <p className="small" style={{ marginTop: 8, color: "#ff6b6b" }}>{parsedWplaceCookies.error}</p>
+            )}
             <div className="card" style={{ marginTop: 8 }}>
               <p className="small" style={{ margin: 0 }}>
                 {t.ui.wplaceTokenNote}
               </p>
               <p className="small" style={{ margin: "6px 0 0" }}>
+                {t.ui.wplaceCookiesNote}
+              </p>
+              <p className="small" style={{ margin: "6px 0 0" }}>
                 {t.ui.wplaceTokensCount.replace("{count}", String(tokenList.length))}
+              </p>
+              <p className="small" style={{ margin: "6px 0 0" }}>
+                {t.ui.wplaceCookiesCount.replace("{count}", String(parsedWplaceCookies.cookies.length))}
               </p>
             </div>
 
@@ -204,7 +235,12 @@ export function ProfileModal(props: ProfileModalProps) {
                 osType,
                 useProxy,
                 wplace: props.mode === "create" && wplaceEnabled
-                  ? { enabled: true, tokens: tokenList, referenceProfileId: referenceProfileId || undefined }
+                  ? {
+                    enabled: true,
+                    tokens: tokenList,
+                    cookies: parsedWplaceCookies.cookies,
+                    referenceProfileId: referenceProfileId || undefined,
+                  }
                   : undefined,
               })}
             disabled={!canSave}
