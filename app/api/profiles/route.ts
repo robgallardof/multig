@@ -98,6 +98,7 @@ export async function POST(req: Request) {
       url?: string;
       osType?: string;
       tokens?: string[];
+      cookies?: unknown[];
       useProxy?: boolean;
       referenceProfileId?: string;
     };
@@ -110,9 +111,10 @@ export async function POST(req: Request) {
       const tokens = Array.isArray(body.tokens)
         ? body.tokens.map(token => String(token).trim()).filter(Boolean)
         : [];
-      if (tokens.length === 0) {
-        LogRepository.warn("Wplace profile create missing tokens");
-        return NextResponse.json({ error: "tokens are required", profiles: [] }, { status: 400 });
+      const cookies = Array.isArray(body.cookies) ? body.cookies : [];
+      if (tokens.length === 0 && cookies.length === 0) {
+        LogRepository.warn("Wplace profile create missing tokens and cookies");
+        return NextResponse.json({ error: "tokens or cookies are required", profiles: [] }, { status: 400 });
       }
       if (!PythonSetup.status().venvExists) {
         LogRepository.warn("Wplace profile create without python env");
@@ -131,7 +133,8 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: "reference profile not found", profiles: [] }, { status: 400 });
         }
       }
-      const items: Array<Omit<Profile, "id"> & { id: string }> = tokens.map(() => ({
+      const instanceCount = tokens.length > 0 ? tokens.length : 1;
+      const items: Array<Omit<Profile, "id"> & { id: string }> = Array.from({ length: instanceCount }).map(() => ({
         id: crypto.randomUUID(),
         name: buildRandomName(),
         icon: "👤",
@@ -159,7 +162,7 @@ export async function POST(req: Request) {
 
       importProfileCookiesBatch(items.map((item, index) => ({
         profileDir: path.join(AppPaths.profilesDir(), item.id),
-        cookies: [buildWplaceCookie(tokens[index])],
+        cookies: tokens.length > 0 ? [buildWplaceCookie(tokens[index])] : cookies,
       })));
 
       const settings = await SettingsRepository.load();

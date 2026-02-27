@@ -388,6 +388,7 @@ export default function HomePage() {
           body: JSON.stringify({
             mode: "wplace",
             tokens: values.wplace.tokens,
+            cookies: values.wplace.cookies,
             referenceProfileId: values.wplace.referenceProfileId,
             osType: values.osType,
             useProxy: values.useProxy,
