@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { ChangeEvent } from "react";
 import type { Translations } from "../i18n";
 import { EmojiIcon } from "./EmojiIcon";
 
@@ -65,6 +65,7 @@ export function ProfileModal(props: ProfileModalProps) {
   const [wplaceTokens, setWplaceTokens] = React.useState("");
   const [wplaceCookiesRaw, setWplaceCookiesRaw] = React.useState("");
   const [referenceProfileId, setReferenceProfileId] = React.useState("");
+  const cookieFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   React.useEffect(() => {
     setName(props.initial.name);
@@ -93,6 +94,22 @@ export function ProfileModal(props: ProfileModalProps) {
       return { cookies: [] as unknown[], error: t.messages.cookiesInvalid };
     }
   }, [wplaceCookiesRaw, t.messages.cookiesInvalid]);
+
+
+  async function handleCookieFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const raw = await file.text();
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) throw new Error(t.messages.cookiesInvalid);
+      setWplaceCookiesRaw(JSON.stringify(parsed, null, 2));
+    } catch {
+      setWplaceCookiesRaw("");
+      window.alert(t.messages.cookiesInvalid);
+    }
+  }
   const canSave = props.mode === "create" && wplaceEnabled
     ? tokenList.length > 0 || parsedWplaceCookies.cookies.length > 0
     : name.trim().length > 0;
@@ -139,6 +156,23 @@ export function ProfileModal(props: ProfileModalProps) {
               placeholder={t.fields.wplaceTokensPlaceholder}
             />
             <label className="label" style={{ marginTop: 12 }}>{t.fields.wplaceCookies}</label>
+            <div className="row" style={{ marginTop: 8, justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => cookieFileInputRef.current?.click()}
+                title={t.actions.importCookies}
+              >
+                <span className="row"><EmojiIcon symbol="📂" label="select json" size={16} />{t.actions.importCookies} JSON</span>
+              </button>
+              <input
+                ref={cookieFileInputRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={handleCookieFileChange}
+                style={{ display: "none" }}
+              />
+            </div>
             <textarea
               className="input"
               rows={6}

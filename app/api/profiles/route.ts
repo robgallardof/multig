@@ -162,7 +162,10 @@ export async function POST(req: Request) {
 
       importProfileCookiesBatch(items.map((item, index) => ({
         profileDir: path.join(AppPaths.profilesDir(), item.id),
-        cookies: tokens.length > 0 ? [buildWplaceCookie(tokens[index])] : cookies,
+        cookies: [
+          ...(tokens[index] ? [buildWplaceCookie(tokens[index])] : []),
+          ...cookies,
+        ],
       })));
 
       const settings = await SettingsRepository.load();
