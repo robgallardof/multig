@@ -78,8 +78,6 @@ export function ProfileModal(props: ProfileModalProps) {
     setReferenceProfileId("");
   }, [props.initial.name, props.initial.icon, props.initial.url, props.initial.osType, props.initial.useProxy, props.isOpen]);
 
-  if (!props.isOpen) return null;
-
   const tokenList = wplaceTokens
     .split(/[,\r\n]+/g)
     .map((token) => token.trim())
@@ -98,6 +96,8 @@ export function ProfileModal(props: ProfileModalProps) {
   const canSave = props.mode === "create" && wplaceEnabled
     ? tokenList.length > 0 || parsedWplaceCookies.cookies.length > 0
     : name.trim().length > 0;
+
+  if (!props.isOpen) return null;
 
   return (
     <div className="modalBg" role="dialog" aria-modal="true">
