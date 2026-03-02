@@ -128,6 +128,7 @@ def _import_cookies(profile_dir: str) -> None:
         raise ValueError("No cookies to import.")
 
     def run(ctx) -> None:
+        ctx.clear_cookies()
         ctx.add_cookies(cookies)
 
     _with_context(profile_dir, run)
@@ -152,6 +153,7 @@ def _import_cookies_batch() -> None:
             continue
 
         def run(ctx) -> None:
+            ctx.clear_cookies()
             ctx.add_cookies(cookies)
 
         _with_context(profile_dir, run)
