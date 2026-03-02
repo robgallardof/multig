@@ -89,6 +89,32 @@ function buildRandomName() {
   return `wplace-${crypto.randomBytes(4).toString("hex")}`;
 }
 
+function isWplaceCookie(cookie: unknown): cookie is Record<string, unknown> {
+  if (!cookie || typeof cookie !== "object") return false;
+  const name = String((cookie as Record<string, unknown>).name || "").trim();
+  const domain = String((cookie as Record<string, unknown>).domain || "").trim().toLowerCase();
+  return (
+    name === "j"
+    || domain.includes("wplace.live")
+    || domain.includes("backend.wplace.live")
+  );
+}
+
+function dedupeCookiesByScope(cookies: unknown[]): unknown[] {
+  const map = new Map<string, unknown>();
+  for (const raw of cookies) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Record<string, unknown>;
+    const name = String(item.name || "").trim();
+    const domain = String(item.domain || "").trim().toLowerCase();
+    const pathValue = String(item.path || "/").trim() || "/";
+    if (!name || !domain) continue;
+    const key = `${name}|${domain}|${pathValue}`;
+    map.set(key, raw);
+  }
+  return Array.from(map.values());
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
@@ -156,7 +182,9 @@ export async function POST(req: Request) {
       const tokens = Array.isArray(body.tokens)
         ? body.tokens.map(token => String(token).trim()).filter(Boolean)
         : [];
-      const cookies = Array.isArray(body.cookies) ? body.cookies : [];
+      const cookies = dedupeCookiesByScope(
+        (Array.isArray(body.cookies) ? body.cookies : []).filter(isWplaceCookie)
+      );
       if (tokens.length === 0 && cookies.length === 0) {
         LogRepository.warn("Wplace profile create missing tokens and cookies");
         return NextResponse.json({ error: "tokens or cookies are required", profiles: [] }, { status: 400 });
@@ -208,8 +236,12 @@ export async function POST(req: Request) {
       importProfileCookiesBatch(items.map((item, index) => ({
         profileDir: path.join(AppPaths.profilesDir(), item.id),
         cookies: [
+          ...cookies.filter((cookie) => {
+            if (!tokens[index] || !cookie || typeof cookie !== "object") return true;
+            const name = String((cookie as Record<string, unknown>).name || "").trim();
+            return name !== "j";
+          }),
           ...(tokens[index] ? [buildWplaceCookie(tokens[index])] : []),
-          ...cookies,
         ],
       })));
 
