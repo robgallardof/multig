@@ -101,7 +101,52 @@ export async function POST(req: Request) {
       cookies?: unknown[];
       useProxy?: boolean;
       referenceProfileId?: string;
+      profiles?: Array<{
+        name?: string;
+        icon?: string;
+        url?: string;
+        osType?: string;
+        useProxy?: boolean;
+      }>;
     };
+
+    if (body.mode === "import") {
+      const items = Array.isArray(body.profiles) ? body.profiles : [];
+      if (items.length === 0) {
+        return NextResponse.json({ error: "profiles are required", profiles: [] }, { status: 400 });
+      }
+
+      const now = new Date().toISOString();
+      const prepared = items
+        .map((item) => {
+          const name = String(item?.name || "").trim();
+          if (!name) return null;
+          const icon = String(item?.icon || "👤").trim() || "👤";
+          const url = item?.url ? String(item.url).trim() : "";
+          const osType = item?.osType === "mac" || item?.osType === "linux" || item?.osType === "windows"
+            ? item.osType
+            : "windows";
+          return {
+            id: crypto.randomUUID(),
+            name,
+            icon,
+            url,
+            osType,
+            useProxy: item?.useProxy !== false,
+            createdAt: now,
+          };
+        })
+        .filter(Boolean) as Array<Omit<Profile, "id"> & { id: string }>;
+
+      if (prepared.length === 0) {
+        return NextResponse.json({ error: "no valid profiles in payload", profiles: [] }, { status: 400 });
+      }
+
+      ProfileRepositorySqlite.createMany(prepared);
+      const profiles = ProfileRepositorySqlite.list();
+      LogRepository.info("Profiles imported", { count: prepared.length });
+      return NextResponse.json({ createdIds: prepared.map((item) => item.id), profiles: listPublicProfiles(profiles) });
+    }
 
     if (body.mode === "wplace") {
       if (!AppConfig.wplaceEnabled) {

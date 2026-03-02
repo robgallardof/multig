@@ -30,8 +30,15 @@ type ApiProfile = {
 };
 
 type ApiProfilesResponse = { profiles: ApiProfile[]; createdId?: string; createdIds?: string[] };
-  type ApiSystemStatus = { venvExists: boolean; wplaceEnabled?: boolean };
+type ApiSystemStatus = { venvExists: boolean; wplaceEnabled?: boolean };
 type ApiProxyStatus = { total: number; available: number };
+type ImportedProfileTemplate = {
+  name?: string;
+  icon?: string;
+  url?: string;
+  osType?: "windows" | "mac" | "linux";
+  useProxy?: boolean;
+};
 type ApiLogEntry = {
   id: number;
   level: "info" | "warn" | "error";
@@ -84,6 +91,7 @@ export default function HomePage() {
   const [selectedProfiles, setSelectedProfiles] = useState<Record<string, boolean>>({});
   const [importingCookies, setImportingCookies] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const profileImportInputRef = useRef<HTMLInputElement | null>(null);
   const wplaceFileInputRef = useRef<HTMLInputElement | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
@@ -828,7 +836,17 @@ export default function HomePage() {
   }
 
   async function exportProfiles() {
-    const payload = JSON.stringify(profiles, null, 2);
+    const payload = JSON.stringify(
+      profiles.map((profile) => ({
+        name: profile.name,
+        icon: profile.icon,
+        url: profile.url,
+        osType: profile.osType,
+        useProxy: profile.useProxy,
+      })),
+      null,
+      2
+    );
     const blob = new Blob([payload], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -838,6 +856,53 @@ export default function HomePage() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  async function handleProfilesImportChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const templates = Array.isArray(parsed) ? parsed : parsed?.profiles;
+      if (!Array.isArray(templates) || templates.length === 0) {
+        throw new Error("Invalid profile import payload");
+      }
+
+      const normalized = templates.map((raw: ImportedProfileTemplate) => ({
+        name: String(raw?.name || "").trim(),
+        icon: String(raw?.icon || "👤").trim() || "👤",
+        url: raw?.url ? String(raw.url).trim() : "",
+        osType: raw?.osType === "mac" || raw?.osType === "linux" || raw?.osType === "windows"
+          ? raw.osType
+          : "windows",
+        useProxy: raw?.useProxy !== false,
+      })).filter((item) => Boolean(item.name));
+
+      if (normalized.length === 0) {
+        throw new Error("Invalid profile import payload");
+      }
+
+      setBusy(true);
+      const r = await fetch("/api/profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "import", profiles: normalized }),
+      });
+      const j = await safeJson<ApiProfilesResponse>(r);
+      if (!r.ok) throw new Error((j as any).error || "Import failed");
+      setProfiles(j.profiles || []);
+      const imported = j.createdIds?.length ?? normalized.length;
+      showToast(t.messages.profilesImported.replace("{count}", String(imported)));
+      await loadAll();
+    } catch (err: any) {
+      showToast(`❌ ${String(err?.message || err)}`);
+      void logClient("error", "Profiles import failed", String(err?.message || err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function exportLogs() {
@@ -1128,6 +1193,9 @@ export default function HomePage() {
               <button className="btn secondary" onClick={() => void exportProfiles()} disabled={profiles.length === 0}>
                 {t.actions.exportProfiles}
               </button>
+              <button className="btn secondary" onClick={() => profileImportInputRef.current?.click()} disabled={busy}>
+                {t.actions.importProfiles}
+              </button>
               <button className="btn secondary" onClick={() => selectAllFiltered()} disabled={filteredProfiles.length === 0}>
                 {t.actions.selectAll}
               </button>
@@ -1303,6 +1371,13 @@ export default function HomePage() {
         accept="application/json"
         style={{ display: "none" }}
         onChange={handleCookieFileChange}
+      />
+      <input
+        ref={profileImportInputRef}
+        type="file"
+        accept="application/json"
+        style={{ display: "none" }}
+        onChange={handleProfilesImportChange}
       />
       <input
         ref={wplaceFileInputRef}
