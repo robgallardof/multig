@@ -1,7 +1,120 @@
-import Database from "better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import { AppPaths } from "./paths";
+
+type SqlParams = Record<string, unknown> | unknown[] | unknown;
+
+type SqlStatement = {
+  run(...params: unknown[]): unknown;
+  get(...params: unknown[]): unknown;
+  all(...params: unknown[]): unknown[];
+};
+
+export type SqliteDb = {
+  prepare(sql: string): SqlStatement;
+  exec(sql: string): void;
+  pragma(sql: string): void;
+  transaction<TArgs extends unknown[], TResult>(
+    fn: (...args: TArgs) => TResult,
+  ): (...args: TArgs) => TResult;
+};
+
+const require = createRequire(import.meta.url);
+
+function normalizeParams(params: unknown[]): SqlParams {
+  if (params.length === 0) return [];
+  if (params.length === 1) return params[0] as SqlParams;
+  return params;
+}
+
+function createNodeSqliteAdapter(db: any): SqliteDb {
+  return {
+    prepare(sql: string): SqlStatement {
+      const stmt = db.prepare(sql);
+      return {
+        run(...params: unknown[]) {
+          return stmt.run(normalizeParams(params));
+        },
+        get(...params: unknown[]) {
+          return stmt.get(normalizeParams(params));
+        },
+        all(...params: unknown[]) {
+          return stmt.all(normalizeParams(params)) as unknown[];
+        },
+      };
+    },
+    exec(sql: string): void {
+      db.exec(sql);
+    },
+    pragma(sql: string): void {
+      db.exec(`PRAGMA ${sql}`);
+    },
+    transaction<TArgs extends unknown[], TResult>(
+      fn: (...args: TArgs) => TResult,
+    ): (...args: TArgs) => TResult {
+      return (...args: TArgs) => {
+        db.exec("BEGIN IMMEDIATE");
+        try {
+          const result = fn(...args);
+          db.exec("COMMIT");
+          return result;
+        } catch (error) {
+          db.exec("ROLLBACK");
+          throw error;
+        }
+      };
+    },
+  };
+}
+
+function createBetterSqliteAdapter(db: any): SqliteDb {
+  return {
+    prepare(sql: string): SqlStatement {
+      const stmt = db.prepare(sql);
+      return {
+        run(...params: unknown[]) {
+          return stmt.run(...params);
+        },
+        get(...params: unknown[]) {
+          return stmt.get(...params);
+        },
+        all(...params: unknown[]) {
+          return stmt.all(...params) as unknown[];
+        },
+      };
+    },
+    exec(sql: string): void {
+      db.exec(sql);
+    },
+    pragma(sql: string): void {
+      db.pragma(sql);
+    },
+    transaction<TArgs extends unknown[], TResult>(
+      fn: (...args: TArgs) => TResult,
+    ): (...args: TArgs) => TResult {
+      return db.transaction(fn);
+    },
+  };
+}
+
+function openDatabase(dbPath: string): SqliteDb {
+  try {
+    const BetterSqlite3 = require("better-sqlite3") as new (path: string) => any;
+    const db = new BetterSqlite3(dbPath);
+    return createBetterSqliteAdapter(db);
+  } catch {
+    try {
+      const sqlite = require("node:sqlite") as { DatabaseSync: new (path: string) => any };
+      const db = new sqlite.DatabaseSync(dbPath);
+      return createNodeSqliteAdapter(db);
+    } catch {
+      throw new Error(
+        "SQLite driver unavailable. Install/rebuild better-sqlite3 or use a Node.js runtime with node:sqlite.",
+      );
+    }
+  }
+}
 
 /**
  * SQLite database wrapper (server-only).
@@ -11,26 +124,27 @@ import { AppPaths } from "./paths";
  * @since 2026-01-23
  */
 export class Db {
-  private static _db: Database.Database | null = null;
+  private static _db: SqliteDb | null = null;
 
   /**
    * Returns a singleton database connection.
    *
    * @since 2026-01-23
    */
-  public static get(): Database.Database {
+  public static get(): SqliteDb {
     if (Db._db) return Db._db;
 
     const dir = AppPaths.dataDir();
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     const dbPath = path.join(dir, "app.db");
-    const db = new Database(dbPath);
+    const db = openDatabase(dbPath);
 
     // Pragmas (safe defaults)
     db.pragma("journal_mode = WAL");
     db.pragma("synchronous = NORMAL");
     db.pragma("foreign_keys = ON");
+    db.pragma("busy_timeout = 5000");
 
     Db._db = db;
     Db.migrate(db);
@@ -42,7 +156,7 @@ export class Db {
    *
    * @since 2026-01-23
    */
-  private static migrate(db: Database.Database): void {
+  private static migrate(db: SqliteDb): void {
     db.exec(`
       CREATE TABLE IF NOT EXISTS profiles (
         id TEXT PRIMARY KEY,
