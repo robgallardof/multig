@@ -5,7 +5,7 @@
  */
 export const es = {
   app: {
-    title: "MultiG - by R. Gallardo",
+    title: "MultiGlacer - by King Gallardo",
     subtitle: "Perfiles persistentes (cookies/storage) con nombre e icono.",
     setupTitle: "Preparar entorno",
     setupBody: "Para abrir ventanas, primero instala Camoufox en el entorno Python. Puedes hacerlo desde aquí.",
@@ -189,7 +189,7 @@ export const es = {
     helper: "Solo hay 1 token válido por dispositivo.",
   },
   footer: {
-    copyright: "© 2026 robertogallardo.dev",
-    by: "Development by robertogallardo",
+    copyright: "© 2026 MultiGlacer",
+    by: "Development by KingGallardo",
   },
 };
