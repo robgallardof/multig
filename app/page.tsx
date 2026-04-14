@@ -745,20 +745,6 @@ export default function HomePage() {
     }
   }
 
-  async function toggleSerialActivated(next: boolean) {
-    setSerialActivated(next);
-    try {
-      const r = await fetch("/api/settings/app", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serialActivated: next }),
-      });
-      if (!r.ok) throw new Error(await r.text());
-    } catch (err: any) {
-      setSerialActivated(!next);
-      showToast(`Error: ${String(err?.message || err)}`);
-    }
-  }
 
   async function exportCookies(id: string) {
     if (!system?.venvExists) {
@@ -1075,14 +1061,6 @@ export default function HomePage() {
                   <EmojiIcon symbol="🖼️" label="upload" size={16} />
                   {t.actions.manageWplaceImages}
                 </span>
-              </button>
-              <button
-                className="btn secondary"
-                onClick={() => void toggleSerialActivated(!serialActivated)}
-                disabled={wplaceBotUploading}
-                title={t.actions.toggleSerialActivated}
-              >
-                <span className="row"><EmojiIcon symbol={serialActivated ? "✅" : "🔓"} label="serial" size={16} />{t.actions.toggleSerialActivated}</span>
               </button>
               {wplaceBotConfigured && (
                 <button
