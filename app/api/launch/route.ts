@@ -16,11 +16,12 @@ import { ProcessRegistry } from "../../../src/server/processRegistry";
  * @since 2026-01-23
  */
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { id?: string; url?: string; proxyId?: string };
+  const body = (await req.json().catch(() => ({}))) as { id?: string; url?: string; proxyId?: string; autoPaint?: boolean };
 
   const id = String(body.id || "");
   const url = String(body.url || "");
   const proxyId = String(body.proxyId || "").trim();
+  const autoPaint = body.autoPaint === true;
 
   if (!id) {
     LogRepository.warn("Launch request missing id", undefined, { url, proxyId });
@@ -87,9 +88,20 @@ export async function POST(req: Request) {
     if (AppConfig.wplaceScriptUrl) {
       extraEnv.WPLACE_TAMPERMONKEY_SCRIPT_URL = AppConfig.wplaceScriptUrl;
     }
-    if (AppConfig.wplaceEnabled && settings.wplaceBotStorage) {
-      extraEnv.WPLACE_WBOT_STORAGE = settings.wplaceBotStorage;
+    if (AppConfig.wplaceEnabled) {
+      if (settings.wplaceLocalStorage && Object.keys(settings.wplaceLocalStorage).length > 0) {
+        extraEnv.WPLACE_LOCALSTORAGE_JSON = JSON.stringify(settings.wplaceLocalStorage);
+      } else if (settings.wplaceBotStorage) {
+        extraEnv.WPLACE_WBOT_STORAGE = settings.wplaceBotStorage;
+      }
+      extraEnv.WPLACE_APP_LANGUAGE = settings.language === "en" ? "en" : "es";
+      if (settings.serialActivated) {
+        extraEnv.WPLACE_SERIAL_ACTIVATED = "1";
+      }
       extraEnv.WPLACE_ENABLED = "1";
+    }
+    if (autoPaint && /^https?:\/\/(www\.)?wplace\.live\b/i.test(url)) {
+      extraEnv.WPLACE_AUTO_PAINT = "1";
     }
     const pid = CamoufoxLauncher.launch(
       id,

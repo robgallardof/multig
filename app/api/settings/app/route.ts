@@ -8,17 +8,33 @@ type AppSettingsPublic = {
   addonUrl: string;
   defaultUrl: string;
   wplaceBotConfigured: boolean;
+  wplaceImagesCount: number;
+  wplaceLocalStorage: Record<string, string>;
+  serialActivated: boolean;
   wplaceScriptUrl: string;
 };
 
-const DEFAULT_URL = "https://www.robertogallardo.dev";
+const DEFAULT_URL = "https://www.kinggallardo.dev";
 
 function toPublic(settings: AppSettings): AppSettingsPublic {
+  const localStorage = settings.wplaceLocalStorage || {};
+  const imageCount = Object.values(localStorage).reduce((count, value) => {
+    try {
+      const parsed = JSON.parse(value) as any;
+      if (Array.isArray(parsed?.images)) return count + parsed.images.length;
+    } catch {
+      return count;
+    }
+    return count;
+  }, 0);
   return {
     language: settings.language === "en" ? "en" : "es",
     addonUrl: (settings.addonUrl || "").trim(),
     defaultUrl: (settings.defaultUrl || DEFAULT_URL).trim() || DEFAULT_URL,
-    wplaceBotConfigured: Boolean(settings.wplaceBotStorage),
+    wplaceBotConfigured: Boolean(settings.wplaceBotStorage) || Object.keys(localStorage).length > 0,
+    wplaceImagesCount: imageCount,
+    wplaceLocalStorage: localStorage,
+    serialActivated: settings.serialActivated === true,
     wplaceScriptUrl: AppConfig.wplaceScriptUrl,
   };
 }
@@ -38,7 +54,7 @@ export async function GET() {
 /**
  * POST /api/settings/app
  *
- * Body: { language?: "es" | "en", addonUrl?: string, defaultUrl?: string, wplaceBotStorage?: string | null }
+ * Body: { language?: "es" | "en", addonUrl?: string, defaultUrl?: string, wplaceBotStorage?: string | null, wplaceLocalStorage?: Record<string,string> | null, serialActivated?: boolean }
  *
  * @since 2026-01-23
  */
@@ -49,6 +65,8 @@ export async function POST(req: Request) {
     addonUrl?: string;
     defaultUrl?: string;
     wplaceBotStorage?: string | null;
+    wplaceLocalStorage?: Record<string, string> | null;
+    serialActivated?: boolean;
   };
   const language = body.language === "en" ? "en" : body.language === "es" ? "es" : settings.language ?? "es";
   const addonUrl = typeof body.addonUrl === "string" ? body.addonUrl.trim() : settings.addonUrl || "";
@@ -60,11 +78,25 @@ export async function POST(req: Request) {
     : body.wplaceBotStorage === null
       ? ""
       : settings.wplaceBotStorage || "";
+  const wplaceLocalStorage = body.wplaceLocalStorage && typeof body.wplaceLocalStorage === "object"
+    ? Object.fromEntries(
+      Object.entries(body.wplaceLocalStorage).filter(
+        ([key, value]) => typeof key === "string" && key.trim() && typeof value === "string" && value.trim()
+      ).map(([key, value]) => [key.trim(), value.trim()])
+    )
+    : body.wplaceLocalStorage === null
+      ? {}
+      : settings.wplaceLocalStorage || {};
+  const serialActivated = typeof body.serialActivated === "boolean"
+    ? body.serialActivated
+    : settings.serialActivated === true;
 
   settings.language = language;
   settings.addonUrl = addonUrl || undefined;
   settings.defaultUrl = defaultUrl || DEFAULT_URL;
   settings.wplaceBotStorage = wplaceBotStorage || undefined;
+  settings.wplaceLocalStorage = Object.keys(wplaceLocalStorage).length ? wplaceLocalStorage : undefined;
+  settings.serialActivated = serialActivated || undefined;
   await SettingsRepository.save(settings);
 
   return NextResponse.json(toPublic(settings));

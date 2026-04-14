@@ -4,7 +4,7 @@ Import/export cookies for a Camoufox persistent profile.
 
 SRP: read cookies JSON and write into profile, or export cookies to JSON.
 
-@author  Roberto Gallardo
+@author  King Gallardo
 @since   2026-01-23
 """
 

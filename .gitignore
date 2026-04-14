@@ -114,3 +114,12 @@ htmlcov/
 
 # Access tokens (managed remotely)
 data/access_tokens.json
+
+# Runtime local data (generated)
+profiles/
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/runtime_processes.json
+data/settings.enc.json
+data/app_secret.txt
