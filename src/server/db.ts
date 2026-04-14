@@ -98,22 +98,33 @@ function createBetterSqliteAdapter(db: any): SqliteDb {
   };
 }
 
+function shortErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message.split("\n")[0] ?? error.message;
+  return String(error);
+}
+
 function openDatabase(dbPath: string): SqliteDb {
+  const errors: string[] = [];
+
+  try {
+    const sqlite = require("node:sqlite") as { DatabaseSync: new (path: string) => any };
+    const db = new sqlite.DatabaseSync(dbPath);
+    return createNodeSqliteAdapter(db);
+  } catch (error) {
+    errors.push(`node:sqlite -> ${shortErrorMessage(error)}`);
+  }
+
   try {
     const BetterSqlite3 = require("better-sqlite3") as new (path: string) => any;
     const db = new BetterSqlite3(dbPath);
     return createBetterSqliteAdapter(db);
-  } catch {
-    try {
-      const sqlite = require("node:sqlite") as { DatabaseSync: new (path: string) => any };
-      const db = new sqlite.DatabaseSync(dbPath);
-      return createNodeSqliteAdapter(db);
-    } catch {
-      throw new Error(
-        "SQLite driver unavailable. Install/rebuild better-sqlite3 or use a Node.js runtime with node:sqlite.",
-      );
-    }
+  } catch (error) {
+    errors.push(`better-sqlite3 -> ${shortErrorMessage(error)}`);
   }
+
+  throw new Error(
+    `No SQLite driver available for ${process.platform}-${process.arch} Node ${process.version}. ${errors.join(" | ")}`,
+  );
 }
 
 /**
@@ -138,6 +149,8 @@ export class Db {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     const dbPath = path.join(dir, "app.db");
+    if (!fs.existsSync(dbPath)) fs.closeSync(fs.openSync(dbPath, "a"));
+
     const db = openDatabase(dbPath);
 
     // Pragmas (safe defaults)
