@@ -200,7 +200,7 @@ export const es = {
     submit: "Entrar",
     validating: "Validando...",
     invalidToken: "Token inválido",
-    helper: "Solo hay 1 token válido por dispositivo.",
+    helper: "El token es opcional.",
   },
   footer: {
     copyright: "© 2026 MultiGlacer",
