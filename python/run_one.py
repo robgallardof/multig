@@ -4,7 +4,7 @@ Single session runner for Camoufox (persistent profile).
 
 SRP: open one persistent window bound to a profile directory and keep it alive.
 
-@author  Roberto Gallardo
+@author  King Gallardo
 @since   2026-01-23
 """
 
@@ -26,11 +26,12 @@ from camoufox.sync_api import Camoufox
 
 TAMPERMONKEY_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/tampermonkey/latest.xpi"
 WPLACE_SCRIPT_DEFAULT = (
-    "https://github.com/SoundOfTheSky/wplace-bot/raw/refs/heads/main/dist.user.js"
+    "https://raw.githubusercontent.com/robgallardof/kglacer-macro/refs/heads/main/dist.user.js"
 )
 
 
 TAMPERMONKEY_EDITOR_ANCHORS = (
+    "userscript.html",
     "options.html#nav=new-user-script+editor",
     "options.html#nav=new-user-script%2Beditor",
 )
@@ -213,15 +214,73 @@ def _wplace_storage_payload() -> str | None:
     return json.dumps(parsed)
 
 
-def _inject_wplace_storage(ctx: Camoufox, page) -> None:
+def _wplace_storage_entries() -> dict[str, str]:
+    if not _read_env_flag(os.getenv("WPLACE_ENABLED", "")):
+        return {}
+    raw_map = os.getenv("WPLACE_LOCALSTORAGE_JSON", "").strip()
+    if raw_map:
+        try:
+            parsed_map = json.loads(raw_map)
+            if isinstance(parsed_map, dict):
+                entries: dict[str, str] = {}
+                for key, value in parsed_map.items():
+                    if not isinstance(key, str) or not key.strip():
+                        continue
+                    if isinstance(value, str):
+                        entries[key.strip()] = value
+                    else:
+                        entries[key.strip()] = json.dumps(value, ensure_ascii=False)
+                return entries
+        except json.JSONDecodeError:
+            pass
     payload = _wplace_storage_payload()
     if not payload:
+        return {}
+    return {"wbot": payload}
+
+
+def _inject_wplace_storage(ctx: Camoufox, page) -> None:
+    entries = _wplace_storage_entries()
+    if not entries:
         return
+    language = os.getenv("WPLACE_APP_LANGUAGE", "").strip().lower()
+    serial_activated = _read_env_flag(os.getenv("WPLACE_SERIAL_ACTIVATED", ""))
     try:
         page.goto("https://wplace.live", wait_until="domcontentloaded")
-        page.evaluate("value => localStorage.setItem('wbot', value)", payload)
+        page.evaluate(
+            """([pairs, lang, serialActivated]) => {
+                if (Array.isArray(pairs)) {
+                    for (const [key, value] of pairs) {
+                        if (!key || typeof value !== "string") continue;
+                        localStorage.setItem(key, value);
+                    }
+                }
+                if (lang === "es" || lang === "en") {
+                    localStorage.setItem("multig.language", lang);
+                }
+                if (serialActivated) {
+                    localStorage.setItem("multig.serialActivated", "1");
+                }
+            }""",
+            [list(entries.items()), language, serial_activated],
+        )
     except Exception:
         pass
+
+
+def _auto_paint_if_enabled(page, target_url: str) -> None:
+    if not _read_env_flag(os.getenv("WPLACE_AUTO_PAINT", "")):
+        return
+    if "wplace.live" not in (target_url or ""):
+        return
+    try:
+        page.wait_for_timeout(1400)
+        page.keyboard.down("Shift")
+        page.keyboard.press("KeyR")
+        page.keyboard.up("Shift")
+        _log("INFO", "Auto paint hotkey sent (Shift+R)")
+    except Exception as exc:
+        _log_exception("Failed to send auto paint hotkey", exc)
 
 
 def _pawtect_context_profile() -> dict:
@@ -941,6 +1000,7 @@ def _run_context(
         _inject_wplace_storage(ctx, page)
         _inject_pawtect_context(page)
         page.goto(target_url)
+        _auto_paint_if_enabled(page, target_url)
         try:
             page.evaluate(
                 "(() => { window.moveTo(0, 0); window.resizeTo(screen.availWidth, screen.availHeight); })()"

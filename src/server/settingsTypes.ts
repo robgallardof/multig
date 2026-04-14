@@ -32,4 +32,6 @@ export type AppSettings = {
   addonUrl?: string;
   defaultUrl?: string;
   wplaceBotStorage?: string;
+  wplaceLocalStorage?: Record<string, string>;
+  serialActivated?: boolean;
 };

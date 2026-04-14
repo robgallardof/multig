@@ -125,6 +125,13 @@ export async function POST(req: Request) {
       const createdAt = new Date().toISOString();
       const useProxy = body.useProxy !== false;
       const referenceProfileId = typeof body.referenceProfileId === "string" ? body.referenceProfileId.trim() : "";
+      const settings = await SettingsRepository.load();
+      if (settings.serialActivated && referenceProfileId) {
+        return NextResponse.json(
+          { error: "serial already activated; base profile cloning is disabled", profiles: [] },
+          { status: 400 }
+        );
+      }
       if (referenceProfileId) {
         const referenceProfile = ProfileRepositorySqlite.getById(referenceProfileId);
         if (!referenceProfile) {
@@ -162,13 +169,20 @@ export async function POST(req: Request) {
         cookies: [buildWplaceCookie(tokens[index])],
       })));
 
-      const settings = await SettingsRepository.load();
       const sharedEnv: Record<string, string> = {};
       if (AppConfig.wplaceScriptUrl) {
         sharedEnv.WPLACE_TAMPERMONKEY_SCRIPT_URL = AppConfig.wplaceScriptUrl;
       }
-      if (AppConfig.wplaceEnabled && settings.wplaceBotStorage) {
-        sharedEnv.WPLACE_WBOT_STORAGE = settings.wplaceBotStorage;
+      if (AppConfig.wplaceEnabled) {
+        if (settings.wplaceLocalStorage && Object.keys(settings.wplaceLocalStorage).length > 0) {
+          sharedEnv.WPLACE_LOCALSTORAGE_JSON = JSON.stringify(settings.wplaceLocalStorage);
+        } else if (settings.wplaceBotStorage) {
+          sharedEnv.WPLACE_WBOT_STORAGE = settings.wplaceBotStorage;
+        }
+        sharedEnv.WPLACE_APP_LANGUAGE = settings.language === "en" ? "en" : "es";
+        if (settings.serialActivated) {
+          sharedEnv.WPLACE_SERIAL_ACTIVATED = "1";
+        }
         sharedEnv.WPLACE_ENABLED = "1";
       }
 

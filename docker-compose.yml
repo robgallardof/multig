@@ -2,7 +2,7 @@ services:
   multig:
     build: .
     ports:
-      - "3000:3000"
+      - "6969:6969"
     volumes:
       - ./data:/app/data
       - ./profiles:/app/profiles

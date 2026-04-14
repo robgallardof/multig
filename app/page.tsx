@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import NextImage from "next/image";
 import { en, es } from "../src/i18n";
 import type { Translations } from "../src/i18n";
 import { WebshareSettingsModal, type WebsharePublicStatus } from "../src/components/WebshareSettingsModal";
@@ -8,6 +9,7 @@ import { AppSettingsModal } from "../src/components/AppSettingsModal";
 import { ProfileCard, type ProfileVm } from "../src/components/ProfileCard";
 import { ProfileModal, type ProfileModalValues } from "../src/components/ProfileModal";
 import { EmojiIcon } from "../src/components/EmojiIcon";
+import brandLogo from "../src/images/logo.svg";
 
 /**
  * API profile model.
@@ -47,7 +49,7 @@ type ApiLogEntry = {
  * @since 2026-01-23
  */
 export default function HomePage() {
-  const [defaultUrl, setDefaultUrl] = useState("https://www.robertogallardo.dev");
+  const [defaultUrl, setDefaultUrl] = useState("https://www.kinggallardo.dev");
   const [profiles, setProfiles] = useState<ApiProfile[]>([]);
   const [busy, setBusy] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -65,6 +67,9 @@ export default function HomePage() {
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
   const [wplaceBotConfigured, setWplaceBotConfigured] = useState(false);
+  const [wplaceImagesCount, setWplaceImagesCount] = useState(0);
+  const [wplaceStorageEntries, setWplaceStorageEntries] = useState<Record<string, string>>({});
+  const [serialActivated, setSerialActivated] = useState(false);
   const [wplaceBotUploading, setWplaceBotUploading] = useState(false);
   const [wplaceScriptCopying, setWplaceScriptCopying] = useState(false);
   const [cookieImportProfileId, setCookieImportProfileId] = useState<string | null>(null);
@@ -169,12 +174,18 @@ export default function HomePage() {
         addonUrl?: string;
         defaultUrl?: string;
         wplaceBotConfigured?: boolean;
+        wplaceImagesCount?: number;
+        wplaceLocalStorage?: Record<string, string>;
+        serialActivated?: boolean;
         wplaceScriptUrl?: string;
       }>(r);
       setLanguage(j.language === "en" ? "en" : "es");
       setAddonUrl(j.addonUrl || "");
-      setDefaultUrl(j.defaultUrl || "https://www.robertogallardo.dev");
+      setDefaultUrl(j.defaultUrl || "https://www.kinggallardo.dev");
       setWplaceBotConfigured(Boolean(j.wplaceBotConfigured));
+      setWplaceImagesCount(Number(j.wplaceImagesCount || 0));
+      setWplaceStorageEntries(j.wplaceLocalStorage && typeof j.wplaceLocalStorage === "object" ? j.wplaceLocalStorage : {});
+      setSerialActivated(j.serialActivated === true);
       setAppSettingsLoaded(true);
     } catch (e: any) {
       void logClient("error", "App settings load failed", String(e?.message || e));
@@ -352,7 +363,7 @@ export default function HomePage() {
       setLogUpdatedAt(new Date().toISOString());
     } catch (e: any) {
       if (!silent) {
-        showToast(`❌ ${String(e?.message || e)}`);
+        showToast(`Error: ${String(e?.message || e)}`);
         void logClient("error", "Logs load failed", String(e?.message || e));
       }
     } finally {
@@ -410,7 +421,7 @@ export default function HomePage() {
 
       showToast(t.messages.profileCreated);
     } catch (e: any) {
-      showToast(`❌ ${String(e?.message || e)}`);
+      showToast(`Error: ${String(e?.message || e)}`);
       void logClient("error", "Profile create failed", String(e?.message || e), { name: values.name });
     } finally {
       setBusy(false);
@@ -433,7 +444,7 @@ export default function HomePage() {
 
       showToast(t.messages.profileUpdated);
     } catch (e: any) {
-      showToast(`❌ ${String(e?.message || e)}`);
+      showToast(`Error: ${String(e?.message || e)}`);
       void logClient("error", "Profile update failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
@@ -452,7 +463,7 @@ export default function HomePage() {
       setProfiles(j.profiles || []);
       showToast(t.messages.profileDeleted);
     } catch (e: any) {
-      showToast(`❌ ${String(e?.message || e)}`);
+      showToast(`Error: ${String(e?.message || e)}`);
       void logClient("error", "Profile delete failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
@@ -465,7 +476,7 @@ export default function HomePage() {
    *
    * @since 2026-02-10
    */
-  async function openProfile(id: string) {
+  async function openProfile(id: string, options?: { autoPaint?: boolean }) {
     if (importingCookies) {
       showToast(t.messages.cookiesImporting);
       return;
@@ -487,7 +498,7 @@ export default function HomePage() {
       const r = await fetch("/api/launch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, url, proxyId: p?.proxyId }),
+        body: JSON.stringify({ id, url, proxyId: p?.proxyId, autoPaint: options?.autoPaint === true }),
       });
       if (!r.ok) throw new Error(await r.text());
       setActiveProfiles((prev) => ({ ...prev, [id]: true }));
@@ -495,7 +506,7 @@ export default function HomePage() {
       await refreshRuntimeStatus();
       await loadAll();
     } catch (e: any) {
-      showToast(`❌ ${String(e?.message || e)}`);
+      showToast(`Error: ${String(e?.message || e)}`);
       void logClient("error", "Profile launch failed", String(e?.message || e), { id, url });
     } finally {
       setBusy(false);
@@ -527,7 +538,7 @@ export default function HomePage() {
       await loadProxyStatus();
       await refreshRuntimeStatus();
     } catch (e: any) {
-      showToast(`❌ ${String(e?.message || e)}`);
+      showToast(`Error: ${String(e?.message || e)}`);
       void logClient("error", "Profile stop failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
@@ -571,7 +582,7 @@ export default function HomePage() {
       if (!r.ok) throw new Error(await r.text());
       showToast(t.messages.cookiesImported);
     } catch (e: any) {
-      showToast(`❌ ${String(e?.message || e)}`);
+      showToast(`Error: ${String(e?.message || e)}`);
       void logClient("error", "Cookies import failed", String(e?.message || e), { profileId });
     } finally {
       setBusy(false);
@@ -582,7 +593,7 @@ export default function HomePage() {
 
   async function buildWplaceStoragePayload(dataUrl: string) {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image();
+      const img = new window.Image();
       img.onload = () => resolve(img);
       img.onerror = () => reject(new Error(t.messages.wplaceImageInvalid));
       img.src = dataUrl;
@@ -609,6 +620,28 @@ export default function HomePage() {
         },
       ],
     });
+  }
+
+  function normalizeWplaceStorageEntries(raw: string): Record<string, string> {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new Error(t.messages.wplaceFileInvalid);
+    }
+    if (!parsed || typeof parsed !== "object") {
+      throw new Error(t.messages.wplaceFileInvalid);
+    }
+    if (parsed.localStorage && typeof parsed.localStorage === "object") {
+      const out: Record<string, string> = {};
+      for (const [key, value] of Object.entries(parsed.localStorage)) {
+        if (!key.trim()) continue;
+        out[key.trim()] = typeof value === "string" ? value : JSON.stringify(value);
+      }
+      if (Object.keys(out).length > 0) return out;
+    }
+    const payload = normalizeWplaceStoragePayload(raw);
+    return { [`kgm.image.${Date.now()}`]: payload };
   }
 
   function normalizeWplaceStoragePayload(raw: string) {
@@ -644,11 +677,26 @@ export default function HomePage() {
     if (!file) return;
     setWplaceBotUploading(true);
     try {
-      const isWbot = file.name.toLowerCase().endsWith(".wbot");
+      const lowerName = file.name.toLowerCase();
+      const isMacroBundle = lowerName.endsWith(".wbot") || lowerName.endsWith(".kgm");
       let storagePayload: string;
-      if (isWbot) {
+      if (isMacroBundle) {
         const text = await file.text();
-        storagePayload = normalizeWplaceStoragePayload(text);
+        const nextEntries = {
+          ...wplaceStorageEntries,
+          ...normalizeWplaceStorageEntries(text),
+        };
+        const r = await fetch("/api/settings/app", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ wplaceLocalStorage: nextEntries }),
+        });
+        if (!r.ok) throw new Error(await r.text());
+        setWplaceStorageEntries(nextEntries);
+        setWplaceBotConfigured(true);
+        setWplaceImagesCount(Object.keys(nextEntries).length);
+        showToast(t.messages.wplaceImageSaved);
+        return;
       } else {
         const reader = new FileReader();
         const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -661,16 +709,22 @@ export default function HomePage() {
         }
         storagePayload = await buildWplaceStoragePayload(dataUrl);
       }
+      const nextEntries = {
+        ...wplaceStorageEntries,
+        [`kgm.image.${Date.now()}`]: storagePayload,
+      };
       const r = await fetch("/api/settings/app", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wplaceBotStorage: storagePayload }),
+        body: JSON.stringify({ wplaceLocalStorage: nextEntries }),
       });
       if (!r.ok) throw new Error(await r.text());
+      setWplaceStorageEntries(nextEntries);
       setWplaceBotConfigured(true);
+      setWplaceImagesCount(Object.keys(nextEntries).length);
       showToast(t.messages.wplaceImageSaved);
     } catch (err: any) {
-      showToast(`❌ ${String(err?.message || err)}`);
+      showToast(`Error: ${String(err?.message || err)}`);
       void logClient("error", "Wplace bot image upload failed", String(err?.message || err));
     } finally {
       setWplaceBotUploading(false);
@@ -700,16 +754,52 @@ export default function HomePage() {
       const r = await fetch("/api/settings/app", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wplaceBotStorage: null }),
+        body: JSON.stringify({ wplaceBotStorage: null, wplaceLocalStorage: null }),
       });
       if (!r.ok) throw new Error(await r.text());
       setWplaceBotConfigured(false);
+      setWplaceStorageEntries({});
+      setWplaceImagesCount(0);
       showToast(t.messages.wplaceImageCleared);
     } catch (err: any) {
-      showToast(`❌ ${String(err?.message || err)}`);
+      showToast(`Error: ${String(err?.message || err)}`);
       void logClient("error", "Wplace bot image clear failed", String(err?.message || err));
     } finally {
       setWplaceBotUploading(false);
+    }
+  }
+
+  async function removeWplaceImageByKey(key: string) {
+    const nextEntries = { ...wplaceStorageEntries };
+    delete nextEntries[key];
+    setWplaceBotUploading(true);
+    try {
+      const r = await fetch("/api/settings/app", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wplaceLocalStorage: Object.keys(nextEntries).length ? nextEntries : null, wplaceBotStorage: null }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      setWplaceStorageEntries(nextEntries);
+      setWplaceImagesCount(Object.keys(nextEntries).length);
+      setWplaceBotConfigured(Object.keys(nextEntries).length > 0);
+    } finally {
+      setWplaceBotUploading(false);
+    }
+  }
+
+  async function toggleSerialActivated(next: boolean) {
+    setSerialActivated(next);
+    try {
+      const r = await fetch("/api/settings/app", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serialActivated: next }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+    } catch (err: any) {
+      setSerialActivated(!next);
+      showToast(`Error: ${String(err?.message || err)}`);
     }
   }
 
@@ -737,7 +827,7 @@ export default function HomePage() {
       URL.revokeObjectURL(url);
       showToast(t.messages.cookiesExported);
     } catch (e: any) {
-      showToast(`❌ ${String(e?.message || e)}`);
+      showToast(`Error: ${String(e?.message || e)}`);
       void logClient("error", "Cookies export failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
@@ -764,7 +854,7 @@ export default function HomePage() {
       showToast(t.messages.rotateSuccess);
       await loadProxyStatus();
     } catch (e: any) {
-      showToast(`❌ ${String(e?.message || e)}`);
+      showToast(`Error: ${String(e?.message || e)}`);
       void logClient("error", "Proxy rotate failed", String(e?.message || e), { id });
     } finally {
       setBusy(false);
@@ -778,6 +868,18 @@ export default function HomePage() {
     }
     for (const p of profiles) {
       await openProfile(p.id);
+    }
+  }
+
+  async function playWplace() {
+    if (importingCookies) {
+      showToast(t.messages.cookiesImporting);
+      return;
+    }
+    const queue = profiles.filter((p) => (p.url || "").includes("wplace.live"));
+    for (const p of queue) {
+      await openProfile(p.id, { autoPaint: true });
+      await new Promise((resolve) => window.setTimeout(resolve, 600));
     }
   }
 
@@ -795,7 +897,7 @@ export default function HomePage() {
       showToast(t.messages.setupReady);
       await loadAll();
     } catch (e: any) {
-      showToast(`❌ ${String(e?.message || e)}`);
+      showToast(`Error: ${String(e?.message || e)}`);
       void logClient("error", "Python setup failed", String(e?.message || e));
     } finally {
       setBusy(false);
@@ -888,7 +990,7 @@ export default function HomePage() {
       clearSelection();
       showToast(t.messages.profilesDeleted.replace("{count}", String(ids.length)));
     } catch (e: any) {
-      showToast(`❌ ${String(e?.message || e)}`);
+      showToast(`Error: ${String(e?.message || e)}`);
       void logClient("error", "Batch profile delete failed", String(e?.message || e), { ids });
     } finally {
       setBusy(false);
@@ -925,7 +1027,9 @@ export default function HomePage() {
     <main className="container">
       <div className="topbar">
         <div className="brand">
-          <div className="logo">🦊</div>
+          <div className="logo">
+            <NextImage src={brandLogo} alt="MultiGlacer logo" width={28} height={28} priority />
+          </div>
           <div>
             <h1 className="h1">{t.app.title}</h1>
             <div className="sub">{t.app.subtitle}</div>
@@ -966,6 +1070,14 @@ export default function HomePage() {
           >
             <span className="row"><EmojiIcon symbol="▶️" label="open all" size={16} />{t.actions.openAll}</span>
           </button>
+          <button
+            className="btn secondary"
+            onClick={() => void playWplace()}
+            disabled={busy || importingCookies || profiles.length === 0}
+            title={t.actions.playPaint}
+          >
+            <span className="row"><EmojiIcon symbol="🎨" label="play" size={16} />{t.actions.playPaint}</span>
+          </button>
 
           {system?.wplaceEnabled && (
             <div className="row">
@@ -985,17 +1097,25 @@ export default function HomePage() {
               >
                 <span className="row">
                   <EmojiIcon symbol="🖼️" label="upload" size={16} />
-                  {wplaceBotConfigured ? t.actions.replaceWplaceImage : t.actions.uploadWplaceImage}
+                  {t.actions.manageWplaceImages}
                 </span>
+              </button>
+              <button
+                className="btn secondary"
+                onClick={() => void toggleSerialActivated(!serialActivated)}
+                disabled={wplaceBotUploading}
+                title={t.actions.toggleSerialActivated}
+              >
+                <span className="row"><EmojiIcon symbol={serialActivated ? "✅" : "🔓"} label="serial" size={16} />{t.actions.toggleSerialActivated}</span>
               </button>
               {wplaceBotConfigured && (
                 <button
                   className="btn secondary"
                   onClick={() => void clearWplaceImage()}
                   disabled={wplaceBotUploading}
-                  title={t.actions.clearWplaceImage}
+                  title={t.actions.clearWplaceImages}
                 >
-                  <span className="row"><EmojiIcon symbol="🧹" label="clear" size={16} />{t.actions.clearWplaceImage}</span>
+                  <span className="row"><EmojiIcon symbol="🧹" label="clear" size={16} />{t.actions.clearWplaceImages}</span>
                 </button>
               )}
             </div>
@@ -1023,6 +1143,19 @@ export default function HomePage() {
         </div>
       </div>
 
+      <div className="card" style={{ marginBottom: 12 }}>
+        <p style={{ margin: "0 0 6px", fontWeight: 700 }}>{t.ui.requirementsTitle}</p>
+        <p className="small" style={{ margin: "0 0 8px" }}>{t.ui.requirementsBody}</p>
+        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+          <a className="btn secondary" href="https://www.python.org/downloads/" target="_blank" rel="noreferrer">
+            {t.ui.requirementsPythonLink}
+          </a>
+          <code className="small" style={{ padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 8 }}>
+            {t.ui.requirementsSetupCmd}: python -m pip install -r python/requirements.txt && python -m camoufox fetch
+          </code>
+        </div>
+      </div>
+
       <div className="tabs">
         <button
           className={`tab ${activeTab === "profiles" ? "active" : ""}`}
@@ -1039,13 +1172,29 @@ export default function HomePage() {
       </div>
 
       <div className="hr" />
+      {system?.wplaceEnabled && wplaceImagesCount > 0 && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <p className="small" style={{ margin: "0 0 8px" }}>
+            {t.ui.wplaceImagesConfigured.replace("{count}", String(wplaceImagesCount))}
+          </p>
+          <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+            {Object.keys(wplaceStorageEntries).map((key) => (
+              <button key={key} className="btn secondary" onClick={() => void removeWplaceImageByKey(key)} disabled={wplaceBotUploading}>
+                <span className="row"><EmojiIcon symbol="🗑️" label="remove" size={16} />{t.actions.removeWplaceImage}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="row" style={{ justifyContent: "space-between" }}>
         <span className="badge">
-          {system?.venvExists ? "🟢 " + t.status.ready : "🟠 " + t.status.notReady}
+          <EmojiIcon symbol={system?.venvExists ? "✅" : "🔓"} size={14} />
+          {system?.venvExists ? t.status.ready : t.status.notReady}
         </span>
         <span className="badge">
-          {t.ui.webshareBadge}: {webshare?.configured ? "🟢" : "🟠"}
+          {t.ui.webshareBadge}
+          <EmojiIcon symbol={webshare?.configured ? "✅" : "🔓"} size={14} />
         </span>
         <span className="badge">
           {proxyStatus
@@ -1286,6 +1435,7 @@ export default function HomePage() {
           useProxy: editing?.useProxy ?? true,
         }}
         allowWplace={Boolean(system?.wplaceEnabled)}
+        serialActivated={serialActivated}
         referenceProfiles={profiles.map((p) => ({ id: p.id, name: p.name }))}
         onClose={() => setModalOpen(false)}
         onSubmit={(values) => {
@@ -1306,7 +1456,7 @@ export default function HomePage() {
       <input
         ref={wplaceFileInputRef}
         type="file"
-        accept="image/*,.wbot"
+        accept="image/*,.wbot,.kgm"
         style={{ display: "none" }}
         onChange={handleWplaceImageChange}
       />

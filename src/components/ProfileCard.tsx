@@ -84,14 +84,14 @@ export function ProfileCard(props: ProfileCardProps) {
               </span>
               <span className="badge" style={{marginLeft:8}}>
                 {p.useProxy === false
-                  ? `🚫 ${t.status.proxyDisabled}`
+                  ? <><EmojiIcon symbol="🔓" label="proxy disabled" size={14} />{t.status.proxyDisabled}</>
                   : p.hasProxy
-                    ? `🛡️ ${p.proxyLabel || p.proxyServer || t.status.proxyAssigned}`
-                    : `🌐 ${t.status.proxyPending}`}
+                    ? <><EmojiIcon symbol="✅" label="proxy assigned" size={14} />{p.proxyLabel || p.proxyServer || t.status.proxyAssigned}</>
+                    : <><EmojiIcon symbol="🔄" label="proxy pending" size={14} />{t.status.proxyPending}</>}
               </span>
               {props.isActive && (
                 <span className="badge activeBadge">
-                  🟢 {t.status.active}
+                  <EmojiIcon symbol="✅" label="active" size={14} /> {t.status.active}
                 </span>
               )}
             </div>

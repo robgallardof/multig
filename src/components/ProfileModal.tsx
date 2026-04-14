@@ -40,6 +40,7 @@ export type ProfileModalProps = {
   title: string;
   initial: ProfileModalValues;
   allowWplace: boolean;
+  serialActivated?: boolean;
   referenceProfiles: Array<{ id: string; name: string }>;
   onClose: () => void;
   onSubmit: (values: ProfileModalValues) => void;
@@ -137,6 +138,7 @@ export function ProfileModal(props: ProfileModalProps) {
             <select
               className="input"
               value={referenceProfileId}
+              disabled={props.serialActivated}
               onChange={(e) => setReferenceProfileId(e.target.value)}
             >
               <option value="">{t.fields.referenceProfilePlaceholder}</option>
@@ -146,6 +148,9 @@ export function ProfileModal(props: ProfileModalProps) {
             </select>
             <div className="card" style={{ marginTop: 8 }}>
               <p className="small" style={{ margin: 0 }}>{t.ui.wplaceReferenceNote}</p>
+              {props.serialActivated && (
+                <p className="small" style={{ margin: "6px 0 0" }}>{t.ui.serialActivatedNoReference}</p>
+              )}
             </div>
           </>
         ) : (

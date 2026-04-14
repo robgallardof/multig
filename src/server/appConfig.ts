@@ -1,5 +1,5 @@
 const WPLACE_SCRIPT_DEFAULT =
-  "https://github.com/SoundOfTheSky/wplace-bot/raw/refs/heads/main/dist.user.js";
+  "https://raw.githubusercontent.com/robgallardof/kglacer-macro/refs/heads/main/dist.user.js";
 
 function readEnvFlag(value?: string): boolean {
   if (!value) return false;
