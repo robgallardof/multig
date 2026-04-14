@@ -274,7 +274,9 @@ def _auto_paint_if_enabled(page, target_url: str) -> None:
     if "wplace.live" not in (target_url or ""):
         return
     try:
-        page.wait_for_timeout(1400)
+        page.wait_for_load_state("domcontentloaded", timeout=12000)
+        page.wait_for_load_state("networkidle", timeout=12000)
+        page.wait_for_timeout(800)
         page.keyboard.down("Shift")
         page.keyboard.press("KeyR")
         page.keyboard.up("Shift")

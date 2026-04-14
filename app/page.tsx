@@ -72,6 +72,7 @@ export default function HomePage() {
   const [serialActivated, setSerialActivated] = useState(false);
   const [wplaceBotUploading, setWplaceBotUploading] = useState(false);
   const [wplaceScriptCopying, setWplaceScriptCopying] = useState(false);
+  const [showRequirements, setShowRequirements] = useState(false);
   const [cookieImportProfileId, setCookieImportProfileId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"profiles" | "logs">("profiles");
   const [profileSearch, setProfileSearch] = useState("");
@@ -591,37 +592,6 @@ export default function HomePage() {
     }
   }
 
-  async function buildWplaceStoragePayload(dataUrl: string) {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new window.Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error(t.messages.wplaceImageInvalid));
-      img.src = dataUrl;
-    });
-
-    return JSON.stringify({
-      version: 2,
-      strategy: "SEQUENTIAL",
-      images: [
-        {
-          pixels: {
-            url: dataUrl,
-            width: image.naturalWidth || 1000,
-            brightness: 0,
-            exactColor: false,
-          },
-          position: [0, 0],
-          strategy: "SPIRAL_FROM_CENTER",
-          opacity: 50,
-          drawTransparentPixels: false,
-          drawColorsInOrder: false,
-          colors: [],
-          lock: false,
-        },
-      ],
-    });
-  }
-
   function normalizeWplaceStorageEntries(raw: string): Record<string, string> {
     let parsed: any;
     try {
@@ -679,39 +649,26 @@ export default function HomePage() {
     try {
       const lowerName = file.name.toLowerCase();
       const isMacroBundle = lowerName.endsWith(".wbot") || lowerName.endsWith(".kgm");
-      let storagePayload: string;
-      if (isMacroBundle) {
-        const text = await file.text();
-        const nextEntries = {
-          ...wplaceStorageEntries,
-          ...normalizeWplaceStorageEntries(text),
-        };
-        const r = await fetch("/api/settings/app", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ wplaceLocalStorage: nextEntries }),
-        });
-        if (!r.ok) throw new Error(await r.text());
-        setWplaceStorageEntries(nextEntries);
-        setWplaceBotConfigured(true);
-        setWplaceImagesCount(Object.keys(nextEntries).length);
-        showToast(t.messages.wplaceImageSaved);
-        return;
-      } else {
-        const reader = new FileReader();
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(String(reader.result || ""));
-          reader.onerror = () => reject(new Error("Failed to read image"));
-          reader.readAsDataURL(file);
-        });
-        if (!dataUrl.startsWith("data:image/")) {
-          throw new Error(t.messages.wplaceImageInvalid);
-        }
-        storagePayload = await buildWplaceStoragePayload(dataUrl);
+      if (!isMacroBundle) {
+        throw new Error(t.messages.wplaceImageInvalid);
+      }
+      const text = await file.text();
+      const normalized = normalizeWplaceStorageEntries(text);
+      const safeBaseName = file.name
+        .replace(/\.[a-z0-9]+$/i, "")
+        .replace(/[^a-z0-9_-]+/gi, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 40) || "bundle";
+      const entriesWithName: Record<string, string> = {};
+      let idx = 0;
+      for (const value of Object.values(normalized)) {
+        entriesWithName[`kgm.image.${safeBaseName}.${Date.now()}.${idx}`] = value;
+        idx += 1;
       }
       const nextEntries = {
         ...wplaceStorageEntries,
-        [`kgm.image.${Date.now()}`]: storagePayload,
+        ...entriesWithName,
       };
       const r = await fetch("/api/settings/app", {
         method: "POST",
@@ -905,6 +862,17 @@ export default function HomePage() {
     }
   }
 
+  function wplacePreviewFromPayload(payload: string): string | null {
+    try {
+      const parsed = JSON.parse(payload) as { images?: Array<{ pixels?: { url?: string } }> };
+      const first = parsed?.images?.[0]?.pixels?.url;
+      if (typeof first === "string" && first.startsWith("data:image/")) return first;
+    } catch {
+      // ignore preview parse errors
+    }
+    return null;
+  }
+
   /**
    * Copies one log entry to clipboard.
    *
@@ -1061,6 +1029,14 @@ export default function HomePage() {
           <button className="btn secondary" onClick={() => setup()} disabled={busy} title={t.actions.setup}>
             <span className="row"><EmojiIcon symbol="🛠️" label="setup" size={16} />{t.actions.setup}</span>
           </button>
+          <button
+            className="btn secondary"
+            onClick={() => setShowRequirements((prev) => !prev)}
+            disabled={busy}
+            title={t.actions.requirements}
+          >
+            <span className="row"><EmojiIcon symbol="📦" label="requirements" size={16} />{t.actions.requirements}</span>
+          </button>
 
           <button
             className="btn secondary"
@@ -1143,6 +1119,7 @@ export default function HomePage() {
         </div>
       </div>
 
+      {showRequirements && (
       <div className="card" style={{ marginBottom: 12 }}>
         <p style={{ margin: "0 0 6px", fontWeight: 700 }}>{t.ui.requirementsTitle}</p>
         <p className="small" style={{ margin: "0 0 8px" }}>{t.ui.requirementsBody}</p>
@@ -1150,11 +1127,15 @@ export default function HomePage() {
           <a className="btn secondary" href="https://www.python.org/downloads/" target="_blank" rel="noreferrer">
             {t.ui.requirementsPythonLink}
           </a>
-          <code className="small" style={{ padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 8 }}>
-            {t.ui.requirementsSetupCmd}: python -m pip install -r python/requirements.txt && python -m camoufox fetch
-          </code>
+          <div className="card" style={{ margin: 0, padding: "8px 10px" }}>
+            <div className="small" style={{ fontWeight: 700, marginBottom: 6 }}>{t.ui.requirementsPackages}</div>
+            <code className="small" style={{ display: "block" }}>camoufox&gt;=0.4.11</code>
+            <code className="small" style={{ display: "block" }}>playwright&gt;=1.44.0</code>
+            <div className="small" style={{ marginTop: 6 }}>{t.ui.requirementsHint}</div>
+          </div>
         </div>
       </div>
+      )}
 
       <div className="tabs">
         <button
@@ -1178,11 +1159,23 @@ export default function HomePage() {
             {t.ui.wplaceImagesConfigured.replace("{count}", String(wplaceImagesCount))}
           </p>
           <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
-            {Object.keys(wplaceStorageEntries).map((key) => (
-              <button key={key} className="btn secondary" onClick={() => void removeWplaceImageByKey(key)} disabled={wplaceBotUploading}>
-                <span className="row"><EmojiIcon symbol="🗑️" label="remove" size={16} />{t.actions.removeWplaceImage}</span>
-              </button>
-            ))}
+            {Object.entries(wplaceStorageEntries).map(([key, payload]) => {
+              const preview = wplacePreviewFromPayload(payload);
+              return (
+                <div key={key} className="card" style={{ margin: 0, padding: 8, minWidth: 180 }}>
+                  {preview && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={preview} alt={key} style={{ width: 42, height: 42, objectFit: "cover", borderRadius: 6, marginBottom: 6 }} />
+                  )}
+                  <div className="small" style={{ marginBottom: 6 }}>
+                    <strong>{t.ui.imageEntryName}:</strong> {key}
+                  </div>
+                  <button className="btn secondary" onClick={() => void removeWplaceImageByKey(key)} disabled={wplaceBotUploading}>
+                    <span className="row"><EmojiIcon symbol="🗑️" label="remove" size={16} />{t.actions.removeWplaceImage}</span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1456,7 +1449,7 @@ export default function HomePage() {
       <input
         ref={wplaceFileInputRef}
         type="file"
-        accept="image/*,.wbot,.kgm"
+        accept=".wbot,.kgm,application/json,text/plain"
         style={{ display: "none" }}
         onChange={handleWplaceImageChange}
       />

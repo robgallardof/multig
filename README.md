@@ -43,9 +43,9 @@ npm run dev
 
 Abre: `http://localhost:6969`
 
-## Preparar entorno Camoufox (Install / Prepare)
+## Preparar entorno Camoufox (Prepare environment)
 
-El botón **Instalar / Preparar** ejecuta el flujo backend equivalente a:
+El botón **Prepare environment** ejecuta el flujo backend equivalente a:
 
 ```bash
 python -m pip install --upgrade pip
@@ -62,9 +62,9 @@ Este paso instala dependencias del runner y descarga/actualiza binarios de Camou
 - Los archivos `.kgm`/`.wbot` se importan a múltiples claves de localStorage según configuración.
 - Se intentan rutas de editor compatibles (`userscript.html` y `options.html#nav=...`).
 
-## Modo Play (pintado)
+## Modo Paint (pintado)
 
-Existe acción **Play (Shift+R)** para abrir instancias Wplace y disparar el hotkey `Shift+R` tras cargar `wplace.live`.
+Existe acción **Paint (Shift+R)** para abrir instancias Wplace y disparar el hotkey `Shift+R` cuando `wplace.live` ya terminó de cargar.
 
 ## Docker
 
@@ -74,15 +74,17 @@ docker compose up --build
 
 ## Scripts de arranque rápido
 
-- Linux: `./start.sh`
+- Linux npm: `./start-npm.sh` (o `./start.sh`)
+- Linux pnpm: `./start-pnpm.sh`
 - macOS: `./start.command`
-- Windows: `start.bat`
+- Windows npm: `start-npm.bat` (o `start.bat`)
+- Windows pnpm: `start-pnpm.bat`
 
 Estos scripts ejecutan `npm install`, levantan la app en puerto **6969**, y abren el navegador por defecto.
 
 ## Troubleshooting rápido
 
-- Si no abre instancias: ejecuta **Instalar / Preparar** y verifica Python 3.10+.
+- Si no abre instancias: ejecuta **Prepare environment** y verifica Python 3.10+.
 - Si falla userscript: valida conectividad a GitHub raw URL del script.
 - Si cambias script: vuelve a preparar perfil o elimina marcador de instalación en `profiles/<id>/.wplace_userscript_installed`.
 

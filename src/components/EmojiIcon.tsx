@@ -41,6 +41,8 @@ function iconFor(symbol: string) {
       return { d: "M12 4v10M8 10l4 4 4-4M5 18h14", color: "#34d399" };
     case "📤":
       return { d: "M12 20V10M8 14l4-4 4 4M5 6h14", color: "#60a5fa" };
+    case "📦":
+      return { d: "M3 8l9-5 9 5-9 5-9-5zM3 8v8l9 5 9-5V8M12 13v8", color: "#fbbf24" };
     case "🕒":
       return { d: "M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16zM12 8v5l3 2", color: "#94a3b8" };
     default:
