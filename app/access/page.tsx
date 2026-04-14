@@ -117,7 +117,7 @@ export default function AccessPage() {
         {status === "error" && (
           <div className="accessError">{message}</div>
         )}
-        <button className="btn" onClick={() => void submit()} disabled={!token.trim() || status === "loading"}>
+        <button className="btn" onClick={() => void submit()} disabled={status === "loading"}>
           {status === "loading" ? t.access.validating : t.access.submit}
         </button>
         <p className="small">{t.access.helper}</p>
