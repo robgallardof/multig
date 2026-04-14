@@ -50,6 +50,46 @@ function createBetterSqliteAdapter(db: any): SqliteDb {
   };
 }
 
+function createNodeSqliteAdapter(db: any): SqliteDb {
+  return {
+    prepare(sql: string): SqlStatement {
+      const stmt = db.prepare(sql);
+      return {
+        run(...params: unknown[]) {
+          return stmt.run(...params);
+        },
+        get(...params: unknown[]) {
+          return stmt.get(...params);
+        },
+        all(...params: unknown[]) {
+          return stmt.all(...params) as unknown[];
+        },
+      };
+    },
+    exec(sql: string): void {
+      db.exec(sql);
+    },
+    pragma(sql: string): void {
+      db.exec(`PRAGMA ${sql}`);
+    },
+    transaction<TArgs extends unknown[], TResult>(
+      fn: (...args: TArgs) => TResult,
+    ): (...args: TArgs) => TResult {
+      return (...args: TArgs) => {
+        db.exec("BEGIN");
+        try {
+          const result = fn(...args);
+          db.exec("COMMIT");
+          return result;
+        } catch (error) {
+          db.exec("ROLLBACK");
+          throw error;
+        }
+      };
+    },
+  };
+}
+
 function shortErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message.split("\n")[0] ?? error.message;
   return String(error);
@@ -64,6 +104,16 @@ function openDatabase(dbPath: string): SqliteDb {
     return createBetterSqliteAdapter(db);
   } catch (error) {
     errors.push(`better-sqlite3 -> ${shortErrorMessage(error)}`);
+  }
+
+  try {
+    const { DatabaseSync } = require("node:sqlite") as {
+      DatabaseSync: new (path: string) => any;
+    };
+    const db = new DatabaseSync(dbPath);
+    return createNodeSqliteAdapter(db);
+  } catch (error) {
+    errors.push(`node:sqlite -> ${shortErrorMessage(error)}`);
   }
 
   throw new Error(
