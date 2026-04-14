@@ -3,8 +3,6 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import { AppPaths } from "./paths";
 
-type SqlParams = Record<string, unknown> | unknown[] | unknown;
-
 type SqlStatement = {
   run(...params: unknown[]): unknown;
   get(...params: unknown[]): unknown;
@@ -21,52 +19,6 @@ export type SqliteDb = {
 };
 
 const require = createRequire(import.meta.url);
-
-function normalizeParams(params: unknown[]): SqlParams {
-  if (params.length === 0) return [];
-  if (params.length === 1) return params[0] as SqlParams;
-  return params;
-}
-
-function createNodeSqliteAdapter(db: any): SqliteDb {
-  return {
-    prepare(sql: string): SqlStatement {
-      const stmt = db.prepare(sql);
-      return {
-        run(...params: unknown[]) {
-          return stmt.run(normalizeParams(params));
-        },
-        get(...params: unknown[]) {
-          return stmt.get(normalizeParams(params));
-        },
-        all(...params: unknown[]) {
-          return stmt.all(normalizeParams(params)) as unknown[];
-        },
-      };
-    },
-    exec(sql: string): void {
-      db.exec(sql);
-    },
-    pragma(sql: string): void {
-      db.exec(`PRAGMA ${sql}`);
-    },
-    transaction<TArgs extends unknown[], TResult>(
-      fn: (...args: TArgs) => TResult,
-    ): (...args: TArgs) => TResult {
-      return (...args: TArgs) => {
-        db.exec("BEGIN IMMEDIATE");
-        try {
-          const result = fn(...args);
-          db.exec("COMMIT");
-          return result;
-        } catch (error) {
-          db.exec("ROLLBACK");
-          throw error;
-        }
-      };
-    },
-  };
-}
 
 function createBetterSqliteAdapter(db: any): SqliteDb {
   return {
@@ -105,14 +57,6 @@ function shortErrorMessage(error: unknown): string {
 
 function openDatabase(dbPath: string): SqliteDb {
   const errors: string[] = [];
-
-  try {
-    const sqlite = require("node:sqlite") as { DatabaseSync: new (path: string) => any };
-    const db = new sqlite.DatabaseSync(dbPath);
-    return createNodeSqliteAdapter(db);
-  } catch (error) {
-    errors.push(`node:sqlite -> ${shortErrorMessage(error)}`);
-  }
 
   try {
     const BetterSqlite3 = require("better-sqlite3") as new (path: string) => any;
