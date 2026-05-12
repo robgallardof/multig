@@ -22,12 +22,13 @@ import zipfile
 import hashlib
 from pathlib import Path
 from shutil import copyfile
+from camoufox import DefaultAddons
 from camoufox.sync_api import Camoufox
 
 TAMPERMONKEY_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/tampermonkey/latest.xpi"
 JSHELTER_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/javascript-restrictor/latest.xpi"
 WPLACE_SCRIPT_DEFAULT = (
-    "https://raw.githubusercontent.com/robgallardof/kglacer-macro/refs/heads/main/dist.user.js"
+    "https://github.com/robgallardof/kglacer-macro/raw/refs/heads/main/dist.user.js"
 )
 
 
@@ -1289,6 +1290,7 @@ def _run_context(
         headless=headless,
         proxy=proxy,
         no_viewport=True,
+        exclude_addons=[DefaultAddons.UBO],
         **config,
     ) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
