@@ -246,7 +246,7 @@ def _pin_addons_in_nav(profile_dir: Path, addon_ids: list[str]) -> None:
     prefs_path.write_text("".join(filtered), encoding="utf-8")
 
 
-def _allow_addons_private_mode(profile_dir: Path, addon_ids: list[str]) -> None:
+def _set_addons_private_mode(profile_dir: Path, addon_ids: list[str], allowed: bool) -> None:
     if not addon_ids:
         return
     settings_path = profile_dir / "extension-settings.json"
@@ -266,10 +266,10 @@ def _allow_addons_private_mode(profile_dir: Path, addon_ids: list[str]) -> None:
         current = payload.get(addon_id)
         if not isinstance(current, dict):
             current = {}
-        if current.get("privateBrowsingAllowed") is True:
+        if current.get("privateBrowsingAllowed") is allowed:
             payload[addon_id] = current
             continue
-        current["privateBrowsingAllowed"] = True
+        current["privateBrowsingAllowed"] = allowed
         payload[addon_id] = current
         updated = True
 
@@ -277,6 +277,11 @@ def _allow_addons_private_mode(profile_dir: Path, addon_ids: list[str]) -> None:
         settings_path.parent.mkdir(parents=True, exist_ok=True)
         settings_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
+
+
+def _is_ublock_url(url: str) -> bool:
+    value = (url or "").lower()
+    return "ublock" in value or "u-block" in value
 def _addon_urls(addon_url: str | None) -> list[str]:
     urls: list[str] = [TAMPERMONKEY_ADDON_URL]
     if _read_env_flag(os.getenv("WPLACE_ENABLE_JSHELTER", "")):
@@ -292,6 +297,9 @@ def _addon_urls(addon_url: str | None) -> list[str]:
     for item in urls:
         normalized = item.strip()
         if not normalized or normalized in seen:
+            continue
+        if _is_ublock_url(normalized):
+            _log("INFO", "Skipping uBlock addon preload (default disabled)", addon_url=normalized)
             continue
         seen.add(normalized)
         deduped.append(normalized)
@@ -309,7 +317,7 @@ def _ensure_firefox_prefs(profile_dir: Path) -> None:
         "extensions.autoDisableScopes": 0,
         "extensions.enabledScopes": 15,
         "xpinstall.enabled": True,
-        "extensions.allowPrivateBrowsingByDefault": True,
+        "extensions.allowPrivateBrowsingByDefault": False,
         "extensions.unifiedExtensions.enabled": False,
     }
     lines = []
@@ -1211,6 +1219,16 @@ def _enforce_tampermonkey_instance_policies(page) -> None:
         _log("INFO", "Tampermonkey instance policy enforced", private_state=private_state, pin_state=pin_state)
     except Exception as exc:
         _log_exception("Tampermonkey instance policy enforcement failed", exc)
+
+
+def _effective_target_url(requested_url: str) -> str:
+    value = (requested_url or "").strip()
+    if not value:
+        return "https://wplace.live"
+    if "wplace.live" in value.lower():
+        return value
+    _log("INFO", "Overriding non-wplace URL with wplace.live", requested_url=value)
+    return "https://wplace.live"
 def _run_context(
     profile_dir: Path,
     proxy,
@@ -1303,7 +1321,8 @@ def main() -> None:
     profile_dir = Path(a.profile)
     addon_url = (a.addon_url or "").strip() or TAMPERMONKEY_ADDON_URL
     addon_urls = _addon_urls(addon_url)
-    _log("INFO", "Starting Camoufox runner", profile=str(profile_dir), prepare_only=bool(a.prepare_only), url=a.url)
+    target_url = _effective_target_url(a.url)
+    _log("INFO", "Starting Camoufox runner", profile=str(profile_dir), prepare_only=bool(a.prepare_only), url=target_url)
     _ensure_firefox_prefs(profile_dir)
     addon_installed_now = False
     installed_addon_ids: list[str] = []
@@ -1320,12 +1339,12 @@ def main() -> None:
                 installed_addon_ids.append(fallback_id)
 
     # Hard requirement: every launched instance must keep Tampermonkey
-    # pinned and explicitly allowed in private windows.
+    # pinned and keep addons disabled for private windows by default.
     installed_addon_ids.append(TAMPERMONKEY_EXTENSION_ID_DEFAULT)
     installed_addon_ids = list(dict.fromkeys([item for item in installed_addon_ids if item]))
 
     _pin_addons_in_nav(profile_dir, installed_addon_ids)
-    _allow_addons_private_mode(profile_dir, installed_addon_ids)
+    _set_addons_private_mode(profile_dir, installed_addon_ids, allowed=False)
 
     if a.prepare_only and addon_installed_now:
         # Firefox/Camoufox can require one startup cycle after copying the XPI
@@ -1334,7 +1353,7 @@ def main() -> None:
             profile_dir,
             proxy,
             config,
-            a.url,
+            target_url,
             headless,
             prepare_only=True,
             install_userscript=True,
@@ -1344,7 +1363,7 @@ def main() -> None:
         profile_dir,
         proxy,
         config,
-        a.url,
+        target_url,
         headless,
         prepare_only=bool(a.prepare_only),
         install_userscript=True,
