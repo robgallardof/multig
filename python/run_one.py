@@ -1182,7 +1182,7 @@ def _run_context(
                 _install_wplace_script(ctx, profile_dir, page)
                 try:
                     dashboard_url = _tampermonkey_dashboard_url()
-                    page.goto(dashboard_url)
+                    page.goto(dashboard_url, wait_until="domcontentloaded")
                     _log("INFO", "Opened Tampermonkey dashboard for manual review", url=dashboard_url)
                 except Exception as exc:
                     _log_exception("Failed to open Tampermonkey dashboard", exc)
@@ -1197,7 +1197,11 @@ def _run_context(
             _install_wplace_script(ctx, profile_dir, page)
         _inject_wplace_storage(ctx, page)
         _inject_pawtect_context(page)
-        page.goto(target_url)
+        try:
+            page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
+        except Exception as exc:
+            _log_exception("Initial navigation failed; retrying with commit state", exc)
+            page.goto(target_url, wait_until="commit", timeout=45000)
         _auto_paint_if_enabled(page, target_url)
         _ensure_window_ready(page)
         try:
