@@ -28,7 +28,7 @@ from camoufox.sync_api import Camoufox
 TAMPERMONKEY_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/tampermonkey/latest.xpi"
 JSHELTER_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/javascript-restrictor/latest.xpi"
 WPLACE_SCRIPT_DEFAULT = (
-    "https://raw.githubusercontent.com/robgallardof/kglacer-macro/refs/heads/main/dist.user.js"
+    "https://github.com/robgallardof/kglacer-macro/raw/refs/heads/main/dist.user.js"
 )
 
 

@@ -16,6 +16,7 @@ import os
 import sys
 from typing import Any
 
+from camoufox import DefaultAddons
 from camoufox.sync_api import Camoufox
 
 
@@ -115,6 +116,7 @@ def _with_context(profile_dir: str, fn) -> Any:
         persistent_context=True,
         user_data_dir=profile_dir,
         headless=_configure_headless(),
+        exclude_addons=[DefaultAddons.UBO],
     ) as ctx:
         return fn(ctx)
 
