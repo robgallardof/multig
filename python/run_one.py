@@ -219,7 +219,9 @@ def _allow_addons_private_mode(profile_dir: Path, addon_ids: list[str]) -> None:
         settings_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def _addon_urls(addon_url: str | None) -> list[str]:
-    urls: list[str] = [TAMPERMONKEY_ADDON_URL, JSHELTER_ADDON_URL]
+    urls: list[str] = [TAMPERMONKEY_ADDON_URL]
+    if _read_env_flag(os.getenv("WPLACE_ENABLE_JSHELTER", "")):
+        urls.append(JSHELTER_ADDON_URL)
     extra = os.getenv("WPLACE_EXTRA_ADDON_URLS", "").strip()
     if extra:
         urls.extend([item.strip() for item in extra.split(",") if item.strip()])
