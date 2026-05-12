@@ -1321,7 +1321,7 @@ def main() -> None:
 
     # Hard requirement: every launched instance must keep Tampermonkey
     # pinned and explicitly allowed in private windows.
-    installed_addon_ids.append(TAMPERMONKEY_ADDON_ID_DEFAULT)
+    installed_addon_ids.append(TAMPERMONKEY_EXTENSION_ID_DEFAULT)
     installed_addon_ids = list(dict.fromkeys([item for item in installed_addon_ids if item]))
 
     _pin_addons_in_nav(profile_dir, installed_addon_ids)
