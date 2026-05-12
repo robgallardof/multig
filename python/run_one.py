@@ -351,7 +351,7 @@ def _ensure_firefox_prefs(profile_dir: Path) -> None:
         "extensions.autoDisableScopes": 0,
         "extensions.enabledScopes": 15,
         "xpinstall.enabled": True,
-        "extensions.allowPrivateBrowsingByDefault": False,
+        "extensions.allowPrivateBrowsingByDefault": True,
         "extensions.unifiedExtensions.enabled": False,
     }
     lines = []
@@ -1387,12 +1387,12 @@ def main() -> None:
                 installed_addon_ids.append(fallback_id)
 
     # Hard requirement: every launched instance must keep Tampermonkey
-    # pinned and keep addons disabled for private windows by default.
+    # pinned and keep addons enabled for private windows by default.
     installed_addon_ids.append(TAMPERMONKEY_EXTENSION_ID_DEFAULT)
     installed_addon_ids = list(dict.fromkeys([item for item in installed_addon_ids if item]))
 
     _pin_addons_in_nav(profile_dir, installed_addon_ids)
-    _set_addons_private_mode(profile_dir, installed_addon_ids, allowed=False)
+    _set_addons_private_mode(profile_dir, installed_addon_ids, allowed=True)
 
     if a.prepare_only and addon_installed_now:
         # Firefox/Camoufox can require one startup cycle after copying the XPI
