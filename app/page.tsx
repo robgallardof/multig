@@ -1231,6 +1231,11 @@ export default function HomePage() {
           </span>
         )}
         {operationStatus && <span className="badge">⏳ {operationStatus}</span>}
+      {busy && operationStatus && (
+        <div className="busyOverlay" aria-live="polite" aria-busy="true">
+          <span className="busyOverlayBadge">⏳ {operationStatus}</span>
+        </div>
+      )}
       </div>
 
       {activeTab === "profiles" ? (
