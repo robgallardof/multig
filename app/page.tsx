@@ -71,6 +71,7 @@ export default function HomePage() {
   const [wplaceStorageEntries, setWplaceStorageEntries] = useState<Record<string, string>>({});
   const [serialActivated, setSerialActivated] = useState(false);
   const [wplaceBotUploading, setWplaceBotUploading] = useState(false);
+  const [autoPaintRunning, setAutoPaintRunning] = useState(false);
   const [wplaceScriptCopying, setWplaceScriptCopying] = useState(false);
   const [showRequirements, setShowRequirements] = useState(false);
   const [cookieImportProfileId, setCookieImportProfileId] = useState<string | null>(null);
@@ -826,6 +827,46 @@ export default function HomePage() {
     }
   }
 
+  async function startAutoPaint() {
+    const queue = profiles.filter((p) => (p.url || "").includes("wplace.live")).map((p) => p.id);
+    if (queue.length === 0) return;
+    await fetch("/api/auto-paint", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "start", queue }),
+    });
+    setAutoPaintRunning(true);
+    showToast(t.messages.autoPaintStarted);
+  }
+
+  async function stopAutoPaint() {
+    await fetch("/api/auto-paint", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "stop" }),
+    });
+    setAutoPaintRunning(false);
+    showToast(t.messages.autoPaintStopped);
+  }
+
+  useEffect(() => {
+    const id = window.setInterval(async () => {
+      try {
+        const s = await fetch("/api/auto-paint", { cache: "no-store" });
+        const j = await s.json();
+        setAutoPaintRunning(j.enabled === true);
+        if (j.enabled === true) {
+          await fetch("/api/auto-paint", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "tick" }),
+          });
+        }
+      } catch {}
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, []);
+
   /**
    * Installs/updates Python dependencies for Camoufox execution.
    *
@@ -1039,6 +1080,17 @@ export default function HomePage() {
             title={t.actions.playPaint}
           >
             <span className="row"><EmojiIcon symbol="🎨" label="play" size={16} />{t.actions.playPaint}</span>
+          </button>
+          <button
+            className={`btn secondary ${autoPaintRunning ? "danger" : ""}`}
+            onClick={() => void (autoPaintRunning ? stopAutoPaint() : startAutoPaint())}
+            disabled={busy || importingCookies || profiles.length === 0}
+            title={autoPaintRunning ? t.actions.stopAutoPaint : t.actions.autoPaint}
+          >
+            <span className="row">
+              <EmojiIcon symbol={autoPaintRunning ? "⏹️" : "🧠"} label="auto-paint" size={16} />
+              {autoPaintRunning ? t.actions.stopAutoPaint : t.actions.autoPaint}
+            </span>
           </button>
 
           {system?.wplaceEnabled && (

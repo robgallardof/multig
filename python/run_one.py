@@ -25,6 +25,7 @@ from shutil import copyfile
 from camoufox.sync_api import Camoufox
 
 TAMPERMONKEY_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/tampermonkey/latest.xpi"
+JSHELTER_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/javascript-restrictor/latest.xpi"
 WPLACE_SCRIPT_DEFAULT = (
     "https://raw.githubusercontent.com/robgallardof/kglacer-macro/refs/heads/main/dist.user.js"
 )
@@ -143,6 +144,25 @@ def _ensure_addon(profile_dir: Path, addon_url: str) -> bool:
         return False
     copyfile(addon_path, target)
     return True
+
+
+def _addon_urls(addon_url: str | None) -> list[str]:
+    urls: list[str] = [TAMPERMONKEY_ADDON_URL, JSHELTER_ADDON_URL]
+    extra = os.getenv("WPLACE_EXTRA_ADDON_URLS", "").strip()
+    if extra:
+        urls.extend([item.strip() for item in extra.split(",") if item.strip()])
+    if addon_url and addon_url.strip():
+        urls.append(addon_url.strip())
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in urls:
+        normalized = item.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(normalized)
+    return deduped
 
 
 def _ensure_firefox_prefs(profile_dir: Path) -> None:
@@ -973,6 +993,36 @@ def _install_wplace_script(ctx: Camoufox, profile_dir: Path, page) -> None:
         _log("ERROR", "Userscript installation failed", profile=str(profile_dir))
 
 
+
+
+def _ensure_window_ready(page) -> None:
+    """Bring the browser page to front and try to maximize reliably."""
+    try:
+        page.bring_to_front()
+    except Exception:
+        pass
+
+    script = """
+    (() => {
+      try {
+        if (document.visibilityState === 'hidden') {
+          window.focus();
+        }
+        window.moveTo(0, 0);
+        window.resizeTo(screen.availWidth, screen.availHeight);
+        if (typeof window.outerWidth === 'number' && window.outerWidth < screen.availWidth * 0.8) {
+          window.resizeTo(screen.availWidth, screen.availHeight);
+        }
+      } catch (e) {}
+    })()
+    """
+
+    for _ in range(3):
+        try:
+            page.wait_for_timeout(250)
+            page.evaluate(script)
+        except Exception:
+            continue
 def _run_context(
     profile_dir: Path,
     proxy,
@@ -999,16 +1049,12 @@ def _run_context(
             return
         _close_tampermonkey_welcome(ctx)
         _close_secondary_pages(ctx, page)
+        _ensure_window_ready(page)
         _inject_wplace_storage(ctx, page)
         _inject_pawtect_context(page)
         page.goto(target_url)
         _auto_paint_if_enabled(page, target_url)
-        try:
-            page.evaluate(
-                "(() => { window.moveTo(0, 0); window.resizeTo(screen.availWidth, screen.availHeight); })()"
-            )
-        except Exception:
-            pass
+        _ensure_window_ready(page)
         try:
             ctx.wait_for_event("close")
         except Exception:
@@ -1052,9 +1098,16 @@ def main() -> None:
 
     profile_dir = Path(a.profile)
     addon_url = (a.addon_url or "").strip() or TAMPERMONKEY_ADDON_URL
+    addon_urls = _addon_urls(addon_url)
     _log("INFO", "Starting Camoufox runner", profile=str(profile_dir), prepare_only=bool(a.prepare_only), url=a.url)
     _ensure_firefox_prefs(profile_dir)
-    addon_installed_now = _ensure_addon(profile_dir, addon_url)
+    addon_installed_now = False
+    for addon_item in addon_urls:
+        try:
+            installed = _ensure_addon(profile_dir, addon_item)
+            addon_installed_now = addon_installed_now or installed
+        except Exception as exc:
+            _log_exception("Addon installation failed", exc, addon_url=addon_item, profile=str(profile_dir))
 
     if a.prepare_only and addon_installed_now:
         # Firefox/Camoufox can require one startup cycle after copying the XPI
