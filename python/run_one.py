@@ -178,12 +178,13 @@ def _pin_addons_in_nav(profile_dir: Path, addon_ids: list[str]) -> None:
         "seen": list(widget_ids),
     }
     line = f'user_pref("browser.uiCustomization.state", {json.dumps(json.dumps(state, separators=(",", ":")))});\n'
-    existing = ""
+    existing_lines: list[str] = []
     if prefs_path.exists():
-        existing = prefs_path.read_text(encoding="utf-8", errors="ignore")
-    with prefs_path.open("a", encoding="utf-8") as handle:
-        if 'user_pref("browser.uiCustomization.state",' not in existing:
-            handle.write(line)
+        existing_lines = prefs_path.read_text(encoding="utf-8", errors="ignore").splitlines(keepends=True)
+    filtered = [ln for ln in existing_lines if 'user_pref("browser.uiCustomization.state",' not in ln]
+    filtered.append(line)
+    prefs_path.parent.mkdir(parents=True, exist_ok=True)
+    prefs_path.write_text("".join(filtered), encoding="utf-8")
 
 
 def _allow_addons_private_mode(profile_dir: Path, addon_ids: list[str]) -> None:
@@ -248,6 +249,7 @@ def _ensure_firefox_prefs(profile_dir: Path) -> None:
         "extensions.enabledScopes": 15,
         "xpinstall.enabled": True,
         "extensions.allowPrivateBrowsingByDefault": True,
+        "extensions.unifiedExtensions.enabled": False,
     }
     lines = []
     for key, value in prefs.items():
