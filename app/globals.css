@@ -23,9 +23,10 @@
   to{opacity:1;transform:translateY(0)}
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:radial-gradient(1200px 700px at 20% 0%, #0f1a2c 0%, var(--bg) 55%); color:var(--text); font-family:'Poppins',ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+html,body{margin:0;min-height:100%;background:radial-gradient(1200px 700px at 20% 0%, #0f1a2c 0%, var(--bg) 55%); color:var(--text); font-family:'Poppins',ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+body{min-height:100vh}
 a{color:inherit}
-.container{max-width:1200px;margin:0 auto;padding:26px 18px}
+.container{width:min(1680px,100%);min-height:100vh;margin:0 auto;padding:26px 24px 32px;display:flex;flex-direction:column}
 .container{
   animation:fadeSlideIn .35s ease both;
 }
@@ -98,7 +99,7 @@ a{color:inherit}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:16px}
 .profilesPanel{margin-top:12px;display:flex;flex-direction:column;gap:12px}
 .profilesHeader{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.profilesGrid{max-height:60vh;overflow:auto;padding-right:4px}
+.profilesGrid{max-height:none;overflow:auto;padding-right:4px}
 .profilesGrid.list{grid-template-columns:1fr}
 .profilesGrid.details{grid-template-columns:1fr}
 .card{
@@ -244,9 +245,9 @@ a{color:inherit}
 .toggleState.active{color:#86efac}
 .langToggle{display:flex;align-items:center;gap:8px;margin-left:auto}
 .langToggle .toggleLabelText{font-size:12px;color:var(--muted)}
-.modalBg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px}
+.modalBg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:1000}
 .modal{
-  width:min(560px,100%);
+  width:min(700px,100%);
   background:linear-gradient(180deg, rgba(17,27,46,.98), rgba(15,22,36,.98));
   border:1px solid var(--border);
   border-radius:18px;
@@ -392,4 +393,13 @@ a{color:inherit}
   .toggleRow .row{width:100%;justify-content:space-between}
   .logsHeader{flex-direction:column;align-items:flex-start}
   .logsFilters{align-items:flex-start}
+}
+
+
+@media (min-width: 1280px){
+  .profilesGrid{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));}
+}
+
+@media (max-width: 900px){
+  .container{padding:20px 14px 24px;}
 }
