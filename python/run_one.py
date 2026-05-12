@@ -1158,6 +1158,59 @@ def _ensure_window_ready(page) -> None:
             page.evaluate(script)
         except Exception:
             continue
+
+
+def _enforce_tampermonkey_instance_policies(page) -> None:
+    """Best-effort runtime enforcement for Tampermonkey in each Firefox instance.
+
+    Ensures the per-extension "Run in Private Windows" setting is "Allow" and
+    attempts to pin Tampermonkey from about:addons when the action exists.
+    """
+    try:
+        page.goto("about:addons", wait_until="domcontentloaded", timeout=30000)
+    except Exception as exc:
+        _log_exception("Failed to open about:addons", exc)
+        return
+
+    scripts = [
+        """
+        () => {
+          const card = document.querySelector('addon-card[addon-id="firefox@tampermonkey.net"]');
+          if (!card) return { found: false };
+          const root = card.shadowRoot || card;
+          const radios = root.querySelectorAll('input[type="radio"][name*="private"], input[type="radio"][name*="incognito"]');
+          for (const radio of radios) {
+            const value = String(radio.value || '').toLowerCase();
+            if (value.includes('allow') || value === '1' || value === 'true') {
+              if (!radio.checked) {
+                radio.click();
+                radio.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              return { found: true, privateAllowed: true };
+            }
+          }
+          return { found: true, privateAllowed: false };
+        }
+        """,
+        """
+        () => {
+          const card = document.querySelector('addon-card[addon-id="firefox@tampermonkey.net"]');
+          if (!card) return { found: false };
+          const root = card.shadowRoot || card;
+          const menuBtn = root.querySelector('panel-item[action="pin-to-toolbar"], button[action="pin-to-toolbar"]');
+          if (!menuBtn) return { found: true, pinned: null };
+          menuBtn.click();
+          return { found: true, pinned: true };
+        }
+        """,
+    ]
+
+    try:
+        private_state = page.evaluate(scripts[0])
+        pin_state = page.evaluate(scripts[1])
+        _log("INFO", "Tampermonkey instance policy enforced", private_state=private_state, pin_state=pin_state)
+    except Exception as exc:
+        _log_exception("Tampermonkey instance policy enforcement failed", exc)
 def _run_context(
     profile_dir: Path,
     proxy,
@@ -1178,6 +1231,7 @@ def _run_context(
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         if prepare_only:
             _ensure_window_ready(page)
+            _enforce_tampermonkey_instance_policies(page)
             if install_userscript:
                 _install_wplace_script(ctx, profile_dir, page)
                 try:
@@ -1193,6 +1247,7 @@ def _run_context(
         _close_tampermonkey_welcome(ctx)
         _close_secondary_pages(ctx, page)
         _ensure_window_ready(page)
+        _enforce_tampermonkey_instance_policies(page)
         if install_userscript:
             _install_wplace_script(ctx, profile_dir, page)
         _inject_wplace_storage(ctx, page)
@@ -1263,6 +1318,11 @@ def main() -> None:
             fallback_id = _fallback_addon_id(addon_item)
             if fallback_id:
                 installed_addon_ids.append(fallback_id)
+
+    # Hard requirement: every launched instance must keep Tampermonkey
+    # pinned and explicitly allowed in private windows.
+    installed_addon_ids.append(TAMPERMONKEY_ADDON_ID_DEFAULT)
+    installed_addon_ids = list(dict.fromkeys([item for item in installed_addon_ids if item]))
 
     _pin_addons_in_nav(profile_dir, installed_addon_ids)
     _allow_addons_private_mode(profile_dir, installed_addon_ids)
