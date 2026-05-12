@@ -14,7 +14,7 @@ type AppSettingsPublic = {
   wplaceScriptUrl: string;
 };
 
-const DEFAULT_URL = "https://www.kinggallardo.dev";
+const DEFAULT_URL = "https://wplace.live";
 
 function toPublic(settings: AppSettings): AppSettingsPublic {
   const localStorage = settings.wplaceLocalStorage || {};
