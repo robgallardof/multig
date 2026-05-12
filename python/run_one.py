@@ -117,12 +117,22 @@ def _addon_cache_path(addon_url: str) -> Path:
 
 def _download_addon(path: Path, url: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
+    if path.exists() and not _should_refresh_cached_addon(path, url):
         return
     tmp_path = path.with_suffix(".tmp")
     with urllib.request.urlopen(url) as response:
         tmp_path.write_bytes(response.read())
     tmp_path.replace(path)
+
+
+def _should_refresh_cached_addon(path: Path, url: str) -> bool:
+    if not path.exists():
+        return True
+    if "/latest/" not in url:
+        return False
+    max_age_seconds = 60 * 60 * 24
+    age_seconds = time.time() - path.stat().st_mtime
+    return age_seconds >= max_age_seconds
 
 
 def _addon_id_from_xpi(path: Path) -> str:
@@ -154,13 +164,34 @@ def _ensure_addon(profile_dir: Path, addon_url: str) -> tuple[bool, str]:
     return (True, addon_id)
 
 
+def _fallback_addon_id(addon_url: str) -> str | None:
+    normalized = (addon_url or "").strip().lower()
+    if "tampermonkey" in normalized:
+        return "firefox@tampermonkey.net"
+    if "javascript-restrictor" in normalized or "jshelter" in normalized:
+        return "jshelter@jshelter.org"
+    return None
+
+
 
 
 def _pin_addons_in_nav(profile_dir: Path, addon_ids: list[str]) -> None:
     if not addon_ids:
         return
 
-    widget_ids = [f"{addon_id}-browser-action" for addon_id in addon_ids if addon_id]
+    widget_ids: list[str] = []
+    for addon_id in addon_ids:
+        if not addon_id:
+            continue
+        # Firefox has used different widget-id encodings depending on addon/runtime
+        # (raw id vs normalized id). We persist both candidates to maximize pinning.
+        candidates = [
+            f"{addon_id}-browser-action",
+            f"{re.sub(r'[^a-zA-Z0-9_-]', '_', addon_id)}-browser-action",
+        ]
+        for candidate in candidates:
+            if candidate and candidate not in widget_ids:
+                widget_ids.append(candidate)
     if not widget_ids:
         return
 
@@ -1225,6 +1256,9 @@ def main() -> None:
                 installed_addon_ids.append(addon_id)
         except Exception as exc:
             _log_exception("Addon installation failed", exc, addon_url=addon_item, profile=str(profile_dir))
+            fallback_id = _fallback_addon_id(addon_item)
+            if fallback_id:
+                installed_addon_ids.append(fallback_id)
 
     _pin_addons_in_nav(profile_dir, installed_addon_ids)
     _allow_addons_private_mode(profile_dir, installed_addon_ids)
