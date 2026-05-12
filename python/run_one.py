@@ -141,7 +141,7 @@ def _addon_id_from_xpi(path: Path) -> str:
     raise ValueError("Addon manifest missing Gecko ID.")
 
 
-def _ensure_addon(profile_dir: Path, addon_url: str) -> bool:
+def _ensure_addon(profile_dir: Path, addon_url: str) -> tuple[bool, str]:
     addon_path = _addon_cache_path(addon_url)
     _download_addon(addon_path, addon_url)
     addon_id = _addon_id_from_xpi(addon_path)
@@ -149,11 +149,41 @@ def _ensure_addon(profile_dir: Path, addon_url: str) -> bool:
     extensions_dir.mkdir(parents=True, exist_ok=True)
     target = extensions_dir / f"{addon_id}.xpi"
     if target.exists():
-        return False
+        return (False, addon_id)
     copyfile(addon_path, target)
-    return True
+    return (True, addon_id)
 
 
+
+
+def _pin_addons_in_nav(profile_dir: Path, addon_ids: list[str]) -> None:
+    if not addon_ids:
+        return
+    prefs_path = profile_dir / "user.js"
+    widget_ids = [f"{addon_id}-browser-action" for addon_id in addon_ids if addon_id]
+    if not widget_ids:
+        return
+    state = {
+        "placements": {
+            "nav-bar": [
+                "back-button",
+                "forward-button",
+                "stop-reload-button",
+                "urlbar-container",
+                "downloads-button",
+                "unified-extensions-button",
+                *widget_ids,
+            ]
+        },
+        "seen": list(widget_ids),
+    }
+    line = f'user_pref("browser.uiCustomization.state", {json.dumps(json.dumps(state, separators=(",", ":")))});\n'
+    existing = ""
+    if prefs_path.exists():
+        existing = prefs_path.read_text(encoding="utf-8", errors="ignore")
+    with prefs_path.open("a", encoding="utf-8") as handle:
+        if 'user_pref("browser.uiCustomization.state",' not in existing:
+            handle.write(line)
 def _addon_urls(addon_url: str | None) -> list[str]:
     urls: list[str] = [TAMPERMONKEY_ADDON_URL, JSHELTER_ADDON_URL]
     extra = os.getenv("WPLACE_EXTRA_ADDON_URLS", "").strip()
@@ -1120,12 +1150,17 @@ def main() -> None:
     _log("INFO", "Starting Camoufox runner", profile=str(profile_dir), prepare_only=bool(a.prepare_only), url=a.url)
     _ensure_firefox_prefs(profile_dir)
     addon_installed_now = False
+    installed_addon_ids: list[str] = []
     for addon_item in addon_urls:
         try:
-            installed = _ensure_addon(profile_dir, addon_item)
+            installed, addon_id = _ensure_addon(profile_dir, addon_item)
             addon_installed_now = addon_installed_now or installed
+            if addon_id:
+                installed_addon_ids.append(addon_id)
         except Exception as exc:
             _log_exception("Addon installation failed", exc, addon_url=addon_item, profile=str(profile_dir))
+
+    _pin_addons_in_nav(profile_dir, installed_addon_ids)
 
     if a.prepare_only and addon_installed_now:
         # Firefox/Camoufox can require one startup cycle after copying the XPI
