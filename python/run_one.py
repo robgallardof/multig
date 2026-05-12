@@ -40,12 +40,14 @@ TAMPERMONKEY_EDITOR_ANCHORS = (
 TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR = "#td_bmV3LXVzZXItc2NyaXB0X2VkaXQ"
 
 
-TAMPERMONKEY_EXTENSION_ID_DEFAULT = "dhdgffkkebhmkfjojejmpbldmpobfkfo"
+TAMPERMONKEY_ADDON_ID = "firefox@tampermonkey.net"
 
 
-def _tampermonkey_dashboard_url() -> str:
-    extension_id = (os.getenv("TAMPERMONKEY_EXTENSION_ID", "") or "").strip() or TAMPERMONKEY_EXTENSION_ID_DEFAULT
-    return f"chrome-extension://{extension_id}/options.html#nav=dashboard"
+def _tampermonkey_dashboard_url(profile_dir: Path) -> str:
+    uuid = _get_webext_uuid(profile_dir, TAMPERMONKEY_ADDON_ID)
+    if uuid:
+        return f"moz-extension://{uuid}/options.html#nav=dashboard"
+    return "about:addons"
 
 
 def _log(level: str, message: str, **context: object) -> None:
@@ -186,9 +188,11 @@ def _pin_addons_in_nav(profile_dir: Path, addon_ids: list[str]) -> None:
             continue
         # Firefox has used different widget-id encodings depending on addon/runtime
         # (raw id vs normalized id). We persist both candidates to maximize pinning.
+        # Only use Firefox's canonical browser-action widget id format.
+        # Injecting guessed/normalized ids can create non-functional toolbar
+        # buttons that appear pinned but do not open the extension popup.
         candidates = [
             f"{addon_id}-browser-action",
-            f"{re.sub(r'[^a-zA-Z0-9_-]', '_', addon_id)}-browser-action",
         ]
         for candidate in candidates:
             if candidate and candidate not in widget_ids:
@@ -1092,8 +1096,7 @@ def _save_tampermonkey_editor(page) -> None:
 
 
 def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_path: Path) -> bool:
-    addon_id = "firefox@tampermonkey.net"
-    uuid = _get_webext_uuid(profile_dir, addon_id)
+    uuid = _get_webext_uuid(profile_dir, TAMPERMONKEY_ADDON_ID)
     if not uuid:
         _log("ERROR", "Tampermonkey UUID not found in profile", profile=str(profile_dir))
         return False
@@ -1315,7 +1318,7 @@ def _run_context(
             if install_userscript:
                 _install_wplace_script(ctx, profile_dir, page)
                 try:
-                    dashboard_url = _tampermonkey_dashboard_url()
+                    dashboard_url = _tampermonkey_dashboard_url(profile_dir)
                     page.goto(dashboard_url, wait_until="domcontentloaded")
                     _log("INFO", "Opened Tampermonkey dashboard for manual review", url=dashboard_url)
                 except Exception as exc:
@@ -1403,7 +1406,10 @@ def main() -> None:
 
     # Hard requirement: every launched instance must keep Tampermonkey
     # pinned and keep addons enabled for private windows by default.
-    installed_addon_ids.append(TAMPERMONKEY_EXTENSION_ID_DEFAULT)
+    # Use Firefox addon IDs here (not Chromium extension IDs) so toolbar
+    # pinning and private-browsing policy writes map to real addon entries.
+    if TAMPERMONKEY_ADDON_ID not in installed_addon_ids:
+        installed_addon_ids.append(TAMPERMONKEY_ADDON_ID)
     installed_addon_ids = list(dict.fromkeys([item for item in installed_addon_ids if item]))
 
     _pin_addons_in_nav(profile_dir, installed_addon_ids)
