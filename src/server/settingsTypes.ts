@@ -34,4 +34,10 @@ export type AppSettings = {
   wplaceBotStorage?: string;
   wplaceLocalStorage?: Record<string, string>;
   serialActivated?: boolean;
+  autoPaint?: {
+    enabled?: boolean;
+    queue?: string[];
+    currentIndex?: number;
+    updatedAt?: string;
+  };
 };

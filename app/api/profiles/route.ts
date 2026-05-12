@@ -15,6 +15,8 @@ import { buildCamoufoxOptions, buildPawtectContextProfile } from "../../../src/s
 import { SettingsRepository } from "../../../src/server/settingsRepository";
 import { ProxyAssignmentService } from "../../../src/server/proxyAssignmentService";
 
+const ENABLE_CREATE_PREPARATION = String(process.env.WPLACE_PREPARE_ON_CREATE ?? "").trim().toLowerCase() === "1";
+
 /**
  * GET /api/profiles
  *
@@ -186,26 +188,37 @@ export async function POST(req: Request) {
         sharedEnv.WPLACE_ENABLED = "1";
       }
 
-      let preparedCount = 0;
-      for (const item of items) {
-        const options = buildCamoufoxOptions(item);
-        const extraEnv = {
-          ...sharedEnv,
-          WPLACE_PAWTECT_CONTEXT_PROFILE_JSON: JSON.stringify(buildPawtectContextProfile(item)),
-        };
-        const prepared = CamoufoxLauncher.prepareProfile(
-          item.id,
-          "https://wplace.live",
-          options,
-          settings.addonUrl,
-          extraEnv
-        );
-        if (prepared) {
-          preparedCount += 1;
-        }
+      if (ENABLE_CREATE_PREPARATION) {
+        setTimeout(() => {
+          let preparedCount = 0;
+          for (const item of items) {
+            const options = buildCamoufoxOptions(item);
+            const extraEnv = {
+              ...sharedEnv,
+              WPLACE_PAWTECT_CONTEXT_PROFILE_JSON: JSON.stringify(buildPawtectContextProfile(item)),
+            };
+            const prepared = CamoufoxLauncher.prepareProfile(
+              item.id,
+              "https://wplace.live",
+              options,
+              settings.addonUrl,
+              extraEnv
+            );
+            if (prepared) preparedCount += 1;
+          }
+          LogRepository.info("Wplace profile background preparation finished", {
+            count: items.length,
+            preparedCount,
+            referenceProfileId: referenceProfileId || null,
+          });
+        }, 0);
       }
 
-      LogRepository.info("Wplace profiles created", { count: items.length, preparedCount, referenceProfileId: referenceProfileId || null });
+      LogRepository.info("Wplace profiles created", {
+        count: items.length,
+        preparedOnCreate: ENABLE_CREATE_PREPARATION,
+        referenceProfileId: referenceProfileId || null,
+      });
       const profiles = ProfileRepositorySqlite.list();
       return NextResponse.json({ profiles: listPublicProfiles(profiles) });
     }
