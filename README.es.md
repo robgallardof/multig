@@ -86,6 +86,18 @@ Estos scripts:
 WPLACE_PREPARE_ON_CREATE=1 npm run dev
 ```
 
+
+## Addons
+
+Cada instancia nueva incluye:
+- Tampermonkey (con acceso a ventana privada prehabilitado)
+
+Addons opcionales:
+- JShelter (`javascript-restrictor`) solo si `WPLACE_ENABLE_JSHELTER=true`
+- URLs extra con `WPLACE_EXTRA_ADDON_URLS`
+
+Si habilitas JShelter, también se autoriza automáticamente para modo privado.
+
 ## Docker
 
 ```bash

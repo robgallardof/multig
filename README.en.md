@@ -65,10 +65,13 @@ These scripts:
 ## Addons
 
 Every new instance includes:
-- Tampermonkey
-- JShelter (`javascript-restrictor`)
+- Tampermonkey (with private-window access pre-enabled)
 
-Optional: extra addon URLs via `WPLACE_EXTRA_ADDON_URLS`.
+Optional addons:
+- JShelter (`javascript-restrictor`) only if `WPLACE_ENABLE_JSHELTER=true`
+- extra addon URLs via `WPLACE_EXTRA_ADDON_URLS`
+
+If JShelter is enabled, it is also pre-authorized for private windows.
 
 ## Docker
 
