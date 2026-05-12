@@ -184,6 +184,39 @@ def _pin_addons_in_nav(profile_dir: Path, addon_ids: list[str]) -> None:
     with prefs_path.open("a", encoding="utf-8") as handle:
         if 'user_pref("browser.uiCustomization.state",' not in existing:
             handle.write(line)
+
+
+def _allow_addons_private_mode(profile_dir: Path, addon_ids: list[str]) -> None:
+    if not addon_ids:
+        return
+    settings_path = profile_dir / "extension-settings.json"
+    payload: dict[str, object] = {}
+    if settings_path.exists():
+        try:
+            loaded = json.loads(settings_path.read_text(encoding="utf-8", errors="ignore"))
+            if isinstance(loaded, dict):
+                payload = loaded
+        except Exception:
+            payload = {}
+
+    updated = False
+    for addon_id in addon_ids:
+        if not addon_id:
+            continue
+        current = payload.get(addon_id)
+        if not isinstance(current, dict):
+            current = {}
+        if current.get("privateBrowsingAllowed") is True:
+            payload[addon_id] = current
+            continue
+        current["privateBrowsingAllowed"] = True
+        payload[addon_id] = current
+        updated = True
+
+    if updated:
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        settings_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
 def _addon_urls(addon_url: str | None) -> list[str]:
     urls: list[str] = [TAMPERMONKEY_ADDON_URL, JSHELTER_ADDON_URL]
     extra = os.getenv("WPLACE_EXTRA_ADDON_URLS", "").strip()
@@ -214,6 +247,7 @@ def _ensure_firefox_prefs(profile_dir: Path) -> None:
         "extensions.autoDisableScopes": 0,
         "extensions.enabledScopes": 15,
         "xpinstall.enabled": True,
+        "extensions.allowPrivateBrowsingByDefault": True,
     }
     lines = []
     for key, value in prefs.items():
@@ -1161,6 +1195,7 @@ def main() -> None:
             _log_exception("Addon installation failed", exc, addon_url=addon_item, profile=str(profile_dir))
 
     _pin_addons_in_nav(profile_dir, installed_addon_ids)
+    _allow_addons_private_mode(profile_dir, installed_addon_ids)
 
     if a.prepare_only and addon_installed_now:
         # Firefox/Camoufox can require one startup cycle after copying the XPI
