@@ -19,17 +19,13 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { id?: string; url?: string; proxyId?: string; autoPaint?: boolean };
 
   const id = String(body.id || "");
-  const url = String(body.url || "");
+  const requestedUrl = String(body.url || "");
   const proxyId = String(body.proxyId || "").trim();
   const autoPaint = body.autoPaint === true;
 
   if (!id) {
-    LogRepository.warn("Launch request missing id", undefined, { url, proxyId });
+    LogRepository.warn("Launch request missing id", undefined, { url: requestedUrl, proxyId });
     return NextResponse.json({ error: "id is required" }, { status: 400 });
-  }
-  if (!url) {
-    LogRepository.warn("Launch request missing url", undefined, { profileId: id, proxyId });
-    return NextResponse.json({ error: "url is required" }, { status: 400 });
   }
 
   const profile = ProfileRepositorySqlite.getById(id);
@@ -37,6 +33,11 @@ export async function POST(req: Request) {
     LogRepository.warn("Launch request for unknown profile", undefined, { profileId: id });
     return NextResponse.json({ error: "profile not found" }, { status: 404 });
   }
+
+  const profileUrl = String(profile.url || "").trim();
+  const launchUrl = AppConfig.wplaceEnabled
+    ? "https://wplace.live"
+    : (requestedUrl || profileUrl || "https://wplace.live");
 
   try {
     const settings = await SettingsRepository.load();
@@ -100,12 +101,12 @@ export async function POST(req: Request) {
       }
       extraEnv.WPLACE_ENABLED = "1";
     }
-    if (autoPaint && /^https?:\/\/(www\.)?wplace\.live\b/i.test(url)) {
+    if (autoPaint && /^https?:\/\/(www\.)?wplace\.live\b/i.test(launchUrl)) {
       extraEnv.WPLACE_AUTO_PAINT = "1";
     }
     const pid = CamoufoxLauncher.launch(
       id,
-      url,
+      launchUrl,
       proxyServer,
       proxyUsername,
       proxyPassword,
@@ -114,23 +115,23 @@ export async function POST(req: Request) {
       extraEnv
     );
     if (pid <= 0) {
-      LogRepository.error("Camoufox launch failed", "PID not returned", { profileId: id, url });
+      LogRepository.error("Camoufox launch failed", "PID not returned", { profileId: id, url: launchUrl });
       return NextResponse.json({ error: "Failed to launch Camoufox." }, { status: 500 });
     }
 
     // record last opened
     ProfileRepositorySqlite.update(id, { lastOpenedAt: new Date().toISOString() } as any);
-    ProcessRegistry.register(id, pid, url);
+    ProcessRegistry.register(id, pid, launchUrl);
     LogRepository.info("Camoufox launched", {
       profileId: id,
-      url,
+      url: launchUrl,
       pid,
       proxyId: assigned?.id ?? null,
     });
 
     return NextResponse.json({ ok: true, pid });
   } catch (e: any) {
-    LogRepository.error("Launch request failed", String(e?.message || e), { profileId: id, url });
+    LogRepository.error("Launch request failed", String(e?.message || e), { profileId: id, url: launchUrl });
     return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
   }
 }
