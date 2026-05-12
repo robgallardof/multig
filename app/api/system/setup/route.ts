@@ -9,7 +9,10 @@ import { LogRepository } from "../../../../src/server/logRepository";
  */
 export async function POST() {
   try {
-    PythonSetup.installAndFetch();
+    LogRepository.info("Python environment setup started");
+    PythonSetup.installAndFetch((step) => {
+      LogRepository.info("Python environment setup progress", { step });
+    });
     LogRepository.info("Python environment setup completed");
     return NextResponse.json({ ok: true });
   } catch (e: any) {
