@@ -279,6 +279,39 @@ def _set_addons_private_mode(profile_dir: Path, addon_ids: list[str], allowed: b
 
 
 
+
+
+def _purge_ublock_addons(profile_dir: Path) -> None:
+    known_ids = {
+        "uBlock0@raymondhill.net",
+        "uBlock0@raymondhill.net.xpi",
+    }
+    extensions_dir = profile_dir / "extensions"
+    if not extensions_dir.exists():
+        return
+
+    removed: list[str] = []
+    for item in extensions_dir.iterdir():
+        name = item.name
+        lower = name.lower()
+        should_remove = name in known_ids or "ublock" in lower or "u-block" in lower
+        if not should_remove:
+            continue
+        try:
+            if item.is_file() or item.is_symlink():
+                item.unlink(missing_ok=True)
+            elif item.is_dir():
+                for child in item.iterdir():
+                    if child.is_file() or child.is_symlink():
+                        child.unlink(missing_ok=True)
+                item.rmdir()
+            removed.append(name)
+        except Exception as exc:
+            _log_exception("Failed to remove uBlock addon artifact", exc, path=str(item))
+
+    if removed:
+        _log("INFO", "Removed uBlock addon artifacts from profile", removed=removed, profile=str(profile_dir))
+
 def _is_ublock_url(url: str) -> bool:
     value = (url or "").lower()
     return "ublock" in value or "u-block" in value
@@ -1221,6 +1254,18 @@ def _enforce_tampermonkey_instance_policies(page) -> None:
         _log_exception("Tampermonkey instance policy enforcement failed", exc)
 
 
+
+
+def _force_wplace_navigation(page, target_url: str) -> None:
+    expected_host = "wplace.live"
+    current = (page.url or "").lower()
+    if expected_host in current:
+        return
+    try:
+        page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
+    except Exception as exc:
+        _log_exception("Forced wplace navigation failed", exc, current_url=current, target_url=target_url)
+
 def _effective_target_url(requested_url: str) -> str:
     value = (requested_url or "").strip()
     if not value:
@@ -1265,7 +1310,6 @@ def _run_context(
         _close_tampermonkey_welcome(ctx)
         _close_secondary_pages(ctx, page)
         _ensure_window_ready(page)
-        _enforce_tampermonkey_instance_policies(page)
         if install_userscript:
             _install_wplace_script(ctx, profile_dir, page)
         _inject_wplace_storage(ctx, page)
@@ -1277,6 +1321,7 @@ def _run_context(
             page.goto(target_url, wait_until="commit", timeout=45000)
         _auto_paint_if_enabled(page, target_url)
         _ensure_window_ready(page)
+        _force_wplace_navigation(page, target_url)
         try:
             ctx.wait_for_event("close")
         except Exception:
@@ -1324,6 +1369,7 @@ def main() -> None:
     target_url = _effective_target_url(a.url)
     _log("INFO", "Starting Camoufox runner", profile=str(profile_dir), prepare_only=bool(a.prepare_only), url=target_url)
     _ensure_firefox_prefs(profile_dir)
+    _purge_ublock_addons(profile_dir)
     addon_installed_now = False
     installed_addon_ids: list[str] = []
     for addon_item in addon_urls:
