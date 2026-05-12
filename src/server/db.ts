@@ -1,5 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
+import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { AppPaths } from "./paths";
 
@@ -46,6 +47,47 @@ function createBetterSqliteAdapter(db: any): SqliteDb {
       fn: (...args: TArgs) => TResult,
     ): (...args: TArgs) => TResult {
       return db.transaction(fn);
+    },
+  };
+}
+
+
+function createBunSqliteAdapter(db: any): SqliteDb {
+  return {
+    prepare(sql: string): SqlStatement {
+      const stmt = db.query(sql);
+      return {
+        run(...params: unknown[]) {
+          return stmt.run(...params);
+        },
+        get(...params: unknown[]) {
+          return stmt.get(...params);
+        },
+        all(...params: unknown[]) {
+          return stmt.all(...params) as unknown[];
+        },
+      };
+    },
+    exec(sql: string): void {
+      db.exec(sql);
+    },
+    pragma(sql: string): void {
+      db.exec(`PRAGMA ${sql}`);
+    },
+    transaction<TArgs extends unknown[], TResult>(
+      fn: (...args: TArgs) => TResult,
+    ): (...args: TArgs) => TResult {
+      return (...args: TArgs) => {
+        db.exec("BEGIN");
+        try {
+          const result = fn(...args);
+          db.exec("COMMIT");
+          return result;
+        } catch (error) {
+          db.exec("ROLLBACK");
+          throw error;
+        }
+      };
     },
   };
 }
@@ -98,18 +140,50 @@ function shortErrorMessage(error: unknown): string {
 function openDatabase(dbPath: string): SqliteDb {
   const errors: string[] = [];
 
-  try {
+  const tryOpenBetterSqlite = (): SqliteDb => {
     const BetterSqlite3 = require("better-sqlite3") as new (path: string) => any;
     const db = new BetterSqlite3(dbPath);
     return createBetterSqliteAdapter(db);
+  };
+
+  try {
+    return tryOpenBetterSqlite();
   } catch (error) {
-    errors.push(`better-sqlite3 -> ${shortErrorMessage(error)}`);
+    const firstError = shortErrorMessage(error);
+    errors.push(`better-sqlite3 -> ${firstError}`);
+
+    if (/Could not locate the bindings file/i.test(firstError)) {
+      try {
+        execSync("npm rebuild better-sqlite3 --build-from-source", {
+          cwd: process.cwd(),
+          stdio: "ignore",
+        });
+        return tryOpenBetterSqlite();
+      } catch (rebuildError) {
+        errors.push(`better-sqlite3 rebuild -> ${shortErrorMessage(rebuildError)}`);
+      }
+    }
   }
 
   try {
-    const { DatabaseSync } = require("node:sqlite") as {
-      DatabaseSync: new (path: string) => any;
-    };
+    if ((process as any).versions?.bun) {
+      const bunModule = (process as any).getBuiltinModule?.("bun:sqlite")
+        ?? (globalThis as any).Bun?.sqlite
+        ?? require("bun:sqlite");
+      const BunDatabase = bunModule.Database ?? bunModule.default ?? bunModule;
+      const db = new BunDatabase(dbPath, { create: true, strict: false });
+      return createBunSqliteAdapter(db);
+    }
+  } catch (error) {
+    errors.push(`bun:sqlite -> ${shortErrorMessage(error)}`);
+  }
+
+  try {
+    const builtInModule = (process as any).getBuiltinModule?.("node:sqlite") as
+      | { DatabaseSync: new (path: string) => any }
+      | undefined;
+    const DatabaseSync = builtInModule?.DatabaseSync
+      ?? (require("node:sqlite") as { DatabaseSync: new (path: string) => any }).DatabaseSync;
     const db = new DatabaseSync(dbPath);
     return createNodeSqliteAdapter(db);
   } catch (error) {
@@ -117,7 +191,7 @@ function openDatabase(dbPath: string): SqliteDb {
   }
 
   throw new Error(
-    `No SQLite driver available for ${process.platform}-${process.arch} Node ${process.version}. ${errors.join(" | ")}`,
+    `No SQLite driver available for ${process.platform}-${process.arch} runtime ${process.version}${(process as any).versions?.bun ? ` bun ${(process as any).versions.bun}` : ""}. ${errors.join(" | ")}`,
   );
 }
 
