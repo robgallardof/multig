@@ -1264,8 +1264,8 @@ def _enforce_tampermonkey_instance_policies(page) -> None:
 
 def _force_wplace_navigation(page, target_url: str) -> None:
     expected_host = "wplace.live"
-    current = (page.url or "").lower()
-    if expected_host in current:
+    current = (page.url or "").strip().lower()
+    if current.startswith("https://wplace.live") or current.startswith("http://wplace.live"):
         return
     try:
         page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
@@ -1325,6 +1325,13 @@ def _run_context(
                     _log_exception("Failed to open Tampermonkey dashboard", exc)
             _close_tampermonkey_welcome(ctx)
             _close_secondary_pages(ctx, page)
+            _inject_wplace_storage(ctx, page)
+            try:
+                page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
+            except Exception as exc:
+                _log_exception("Prepare-only navigation failed; retrying with commit state", exc)
+                page.goto(target_url, wait_until="commit", timeout=45000)
+            _force_wplace_navigation(page, target_url)
             _log("INFO", "Prepare-only cycle finished", profile=str(profile_dir))
             return
         _close_tampermonkey_welcome(ctx)

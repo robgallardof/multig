@@ -486,7 +486,7 @@ export default function HomePage() {
     const p = profiles.find(x => x.id === id);
     const profileUrl = p?.url?.trim() ?? "";
     const normalizedDefaultUrl = defaultUrl.trim();
-    const url = profileUrl || normalizedDefaultUrl;
+    const url = system?.wplaceEnabled ? "https://wplace.live" : (profileUrl || normalizedDefaultUrl);
 
     if (!system?.venvExists) {
       showToast(t.messages.setupRequired);
