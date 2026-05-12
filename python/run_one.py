@@ -353,6 +353,8 @@ def _ensure_firefox_prefs(profile_dir: Path) -> None:
         "xpinstall.enabled": True,
         "extensions.allowPrivateBrowsingByDefault": True,
         "extensions.unifiedExtensions.enabled": False,
+        "browser.privatebrowsing.autostart": False,
+        "browser.startup.page": 1,
     }
     lines = []
     for key, value in prefs.items():
@@ -1275,6 +1277,17 @@ def _effective_target_url(requested_url: str) -> str:
         return value
     _log("INFO", "Overriding non-wplace URL with wplace.live", requested_url=value)
     return "https://wplace.live"
+def _force_non_private_mode(config: dict) -> dict:
+    merged = dict(config or {})
+    prefs = merged.get("firefox_user_prefs")
+    if not isinstance(prefs, dict):
+        prefs = {}
+    prefs["browser.privatebrowsing.autostart"] = False
+    prefs["browser.startup.page"] = 1
+    merged["firefox_user_prefs"] = prefs
+    return merged
+
+
 def _run_context(
     profile_dir: Path,
     proxy,
@@ -1284,6 +1297,8 @@ def _run_context(
     prepare_only: bool,
     install_userscript: bool,
 ) -> None:
+    runtime_config = _force_non_private_mode(config)
+    _log("INFO", "Launching Camoufox context", prepare_only=prepare_only, private_autostart=runtime_config.get("firefox_user_prefs", {}).get("browser.privatebrowsing.autostart"))
     with Camoufox(
         persistent_context=True,
         user_data_dir=str(profile_dir),
@@ -1291,7 +1306,7 @@ def _run_context(
         proxy=proxy,
         no_viewport=True,
         exclude_addons=[DefaultAddons.UBO],
-        **config,
+        **runtime_config,
     ) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         if prepare_only:
