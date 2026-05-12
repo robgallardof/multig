@@ -159,28 +159,56 @@ def _ensure_addon(profile_dir: Path, addon_url: str) -> tuple[bool, str]:
 def _pin_addons_in_nav(profile_dir: Path, addon_ids: list[str]) -> None:
     if not addon_ids:
         return
-    prefs_path = profile_dir / "user.js"
+
     widget_ids = [f"{addon_id}-browser-action" for addon_id in addon_ids if addon_id]
     if not widget_ids:
         return
-    state = {
-        "placements": {
-            "nav-bar": [
-                "back-button",
-                "forward-button",
-                "stop-reload-button",
-                "urlbar-container",
-                "downloads-button",
-                "unified-extensions-button",
-                *widget_ids,
-            ]
-        },
-        "seen": list(widget_ids),
-    }
-    line = f'user_pref("browser.uiCustomization.state", {json.dumps(json.dumps(state, separators=(",", ":")))});\n'
-    existing_lines: list[str] = []
+
+    prefs_path = profile_dir / "user.js"
+    existing_text = ""
     if prefs_path.exists():
-        existing_lines = prefs_path.read_text(encoding="utf-8", errors="ignore").splitlines(keepends=True)
+        existing_text = prefs_path.read_text(encoding="utf-8", errors="ignore")
+
+    state: dict[str, object] = {}
+    m = re.search(r'user_pref\("browser\.uiCustomization\.state",\s*"((?:\\.|[^"\\])*)"\s*\);', existing_text)
+    if m:
+        try:
+            encoded = bytes(m.group(1), "utf-8").decode("unicode_escape")
+            loaded = json.loads(encoded)
+            if isinstance(loaded, dict):
+                state = loaded
+        except Exception:
+            state = {}
+
+    placements = state.get("placements") if isinstance(state.get("placements"), dict) else {}
+    nav_bar = placements.get("nav-bar") if isinstance(placements.get("nav-bar"), list) else []
+
+    defaults = [
+        "back-button",
+        "forward-button",
+        "stop-reload-button",
+        "urlbar-container",
+        "downloads-button",
+        "unified-extensions-button",
+    ]
+
+    merged_nav: list[str] = []
+    for item in [*defaults, *nav_bar, *widget_ids]:
+        if isinstance(item, str) and item and item not in merged_nav:
+            merged_nav.append(item)
+
+    placements["nav-bar"] = merged_nav
+    state["placements"] = placements
+
+    seen = state.get("seen") if isinstance(state.get("seen"), list) else []
+    merged_seen: list[str] = [x for x in seen if isinstance(x, str) and x]
+    for widget_id in widget_ids:
+        if widget_id not in merged_seen:
+            merged_seen.append(widget_id)
+    state["seen"] = merged_seen
+
+    line = f'user_pref("browser.uiCustomization.state", {json.dumps(json.dumps(state, separators=(",", ":")))});\n'
+    existing_lines = existing_text.splitlines(keepends=True)
     filtered = [ln for ln in existing_lines if 'user_pref("browser.uiCustomization.state",' not in ln]
     filtered.append(line)
     prefs_path.parent.mkdir(parents=True, exist_ok=True)
@@ -219,7 +247,9 @@ def _allow_addons_private_mode(profile_dir: Path, addon_ids: list[str]) -> None:
         settings_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def _addon_urls(addon_url: str | None) -> list[str]:
-    urls: list[str] = [TAMPERMONKEY_ADDON_URL, JSHELTER_ADDON_URL]
+    urls: list[str] = [TAMPERMONKEY_ADDON_URL]
+    if _read_env_flag(os.getenv("WPLACE_ENABLE_JSHELTER", "")):
+        urls.append(JSHELTER_ADDON_URL)
     extra = os.getenv("WPLACE_EXTRA_ADDON_URLS", "").strip()
     if extra:
         urls.extend([item.strip() for item in extra.split(",") if item.strip()])
