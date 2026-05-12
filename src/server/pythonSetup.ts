@@ -49,18 +49,24 @@ export class PythonSetup {
    *
    * @since 2026-01-23
    */
-  public static installAndFetch(): void {
+  public static installAndFetch(onProgress?: (step: string) => void): void {
+    onProgress?.("Ensuring Python virtual environment");
     PythonSetup.ensureVenv();
     const py = AppPaths.venvPython();
 
+    onProgress?.("Upgrading pip");
     let r = spawnSync(py, ["-m", "pip", "install", "--upgrade", "pip"], { stdio: "inherit" });
     if (r.status !== 0) throw new Error("pip upgrade failed.");
 
+    onProgress?.("Installing Python requirements");
     r = spawnSync(py, ["-m", "pip", "install", "-r", "./python/requirements.txt"], { stdio: "inherit" });
     if (r.status !== 0) throw new Error("pip install requirements failed.");
 
+    onProgress?.("Downloading Camoufox binaries");
     r = spawnSync(py, ["-m", "camoufox", "fetch"], { stdio: "inherit" });
     if (r.status !== 0) throw new Error("camoufox fetch failed.");
+
+    onProgress?.("Python environment ready");
   }
 
   /**

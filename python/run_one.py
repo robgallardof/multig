@@ -39,6 +39,14 @@ TAMPERMONKEY_EDITOR_ANCHORS = (
 TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR = "#td_bmV3LXVzZXItc2NyaXB0X2VkaXQ"
 
 
+TAMPERMONKEY_EXTENSION_ID_DEFAULT = "dhdgffkkebhmkfjojejmpbldmpobfkfo"
+
+
+def _tampermonkey_dashboard_url() -> str:
+    extension_id = (os.getenv("TAMPERMONKEY_EXTENSION_ID", "") or "").strip() or TAMPERMONKEY_EXTENSION_ID_DEFAULT
+    return f"chrome-extension://{extension_id}/options.html#nav=dashboard"
+
+
 def _log(level: str, message: str, **context: object) -> None:
     payload = {
         "level": (level or "INFO").upper(),
@@ -1042,14 +1050,24 @@ def _run_context(
     ) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         if prepare_only:
+            _ensure_window_ready(page)
             if install_userscript:
                 _install_wplace_script(ctx, profile_dir, page)
+                try:
+                    dashboard_url = _tampermonkey_dashboard_url()
+                    page.goto(dashboard_url)
+                    _log("INFO", "Opened Tampermonkey dashboard for manual review", url=dashboard_url)
+                except Exception as exc:
+                    _log_exception("Failed to open Tampermonkey dashboard", exc)
             _close_tampermonkey_welcome(ctx)
             _close_secondary_pages(ctx, page)
+            _log("INFO", "Prepare-only cycle finished", profile=str(profile_dir))
             return
         _close_tampermonkey_welcome(ctx)
         _close_secondary_pages(ctx, page)
         _ensure_window_ready(page)
+        if install_userscript:
+            _install_wplace_script(ctx, profile_dir, page)
         _inject_wplace_storage(ctx, page)
         _inject_pawtect_context(page)
         page.goto(target_url)
@@ -1119,7 +1137,7 @@ def main() -> None:
             a.url,
             headless,
             prepare_only=True,
-            install_userscript=False,
+            install_userscript=True,
         )
 
     _run_context(
@@ -1129,7 +1147,7 @@ def main() -> None:
         a.url,
         headless,
         prepare_only=bool(a.prepare_only),
-        install_userscript=False,
+        install_userscript=True,
     )
     _log("INFO", "Camoufox runner finished", profile=str(profile_dir))
 
