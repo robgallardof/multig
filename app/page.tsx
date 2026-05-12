@@ -1023,7 +1023,7 @@ export default function HomePage() {
       <div className="topbar">
         <div className="brand">
           <div className="logo">
-            <NextImage src={brandLogo} alt="MultiGlacer logo" width={28} height={28} priority />
+            <NextImage src={brandLogo} alt="MultiGlacer logo" width={48} height={48} priority />
           </div>
           <div>
             <h1 className="h1">{t.app.title}</h1>
