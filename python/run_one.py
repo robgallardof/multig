@@ -25,7 +25,7 @@ from shutil import copyfile
 from camoufox import DefaultAddons
 from camoufox.sync_api import Camoufox
 
-TAMPERMONKEY_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/tampermonkey/latest.xpi"
+TAMPERMONKEY_ADDON_URL = "https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/"
 JSHELTER_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/javascript-restrictor/latest.xpi"
 WPLACE_SCRIPT_DEFAULT = (
     "https://github.com/robgallardof/kglacer-macro/raw/refs/heads/main/dist.user.js"
@@ -113,6 +113,23 @@ def _data_dir() -> Path:
     return Path(data_root).resolve()
 
 
+
+
+def _resolve_addon_download_url(url: str) -> str:
+    value = (url or "").strip()
+    if not value:
+        return value
+
+    parsed = urllib.parse.urlsplit(value)
+    host = parsed.netloc.lower()
+    path = parsed.path.rstrip("/")
+
+    if "addons.mozilla.org" in host and "/firefox/addon/" in path:
+        slug = path.split("/firefox/addon/", 1)[1].split("/", 1)[0].strip()
+        if slug:
+            return f"https://addons.mozilla.org/firefox/downloads/latest/{slug}/latest.xpi"
+
+    return value
 def _addon_cache_path(addon_url: str) -> Path:
     digest = hashlib.sha256(addon_url.encode("utf-8")).hexdigest()[:12]
     return _data_dir() / "addons" / f"addon-{digest}.xpi"
@@ -120,10 +137,11 @@ def _addon_cache_path(addon_url: str) -> Path:
 
 def _download_addon(path: Path, url: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists() and not _should_refresh_cached_addon(path, url):
+    source_url = _resolve_addon_download_url(url)
+    if path.exists() and not _should_refresh_cached_addon(path, source_url):
         return
     tmp_path = path.with_suffix(".tmp")
-    with urllib.request.urlopen(url) as response:
+    with urllib.request.urlopen(source_url) as response:
         tmp_path.write_bytes(response.read())
     tmp_path.replace(path)
 
@@ -154,17 +172,46 @@ def _addon_id_from_xpi(path: Path) -> str:
     raise ValueError("Addon manifest missing Gecko ID.")
 
 
-def _ensure_addon(profile_dir: Path, addon_url: str) -> tuple[bool, str]:
+
+
+def _extract_addon_for_camoufox(addon_path: Path) -> Path:
+    """Camoufox addons parameter requires extracted addon directories."""
+    extract_root = _data_dir() / "addons_extracted"
+    extract_root.mkdir(parents=True, exist_ok=True)
+    target = extract_root / addon_path.stem
+
+    manifest_target = target / "manifest.json"
+    if manifest_target.exists() and manifest_target.is_file():
+        return target
+
+    if target.exists():
+        for child in target.rglob("*"):
+            if child.is_file() or child.is_symlink():
+                child.unlink(missing_ok=True)
+        for child in sorted([x for x in target.rglob("*") if x.is_dir()], reverse=True):
+            try:
+                child.rmdir()
+            except Exception:
+                pass
+    target.mkdir(parents=True, exist_ok=True)
+
+    with zipfile.ZipFile(addon_path, "r") as zf:
+        zf.extractall(target)
+    if not manifest_target.exists():
+        raise ValueError(f"Extracted addon missing manifest.json: {addon_path}")
+    return target
+def _ensure_addon(profile_dir: Path, addon_url: str) -> tuple[bool, str, str]:
     addon_path = _addon_cache_path(addon_url)
     _download_addon(addon_path, addon_url)
     addon_id = _addon_id_from_xpi(addon_path)
     extensions_dir = profile_dir / "extensions"
     extensions_dir.mkdir(parents=True, exist_ok=True)
     target = extensions_dir / f"{addon_id}.xpi"
+    extracted_dir = _extract_addon_for_camoufox(addon_path)
     if target.exists():
-        return (False, addon_id)
+        return (False, addon_id, str(extracted_dir))
     copyfile(addon_path, target)
-    return (True, addon_id)
+    return (True, addon_id, str(extracted_dir))
 
 
 def _fallback_addon_id(addon_url: str) -> str | None:
@@ -1262,9 +1309,14 @@ def _enforce_tampermonkey_instance_policies(page) -> None:
 
 
 
+def _is_wplace_url(url: str) -> bool:
+    current = (url or "").strip().lower()
+    return current.startswith("https://wplace.live") or current.startswith("http://wplace.live") or current.startswith("https://www.wplace.live") or current.startswith("http://www.wplace.live")
+
+
 def _force_wplace_navigation(page, target_url: str) -> None:
     current = (page.url or "").strip().lower()
-    if current.startswith("https://wplace.live") or current.startswith("http://wplace.live"):
+    if _is_wplace_url(current):
         return
 
     attempts = ["domcontentloaded", "commit"]
@@ -1300,10 +1352,22 @@ def _effective_target_url(requested_url: str) -> str:
     value = (requested_url or "").strip()
     if not value:
         return "https://wplace.live"
-    if "wplace.live" in value.lower():
-        return value
+    lower = value.lower()
+    if "wplace.live" in lower:
+        return "https://wplace.live"
     _log("INFO", "Overriding non-wplace URL with wplace.live", requested_url=value)
     return "https://wplace.live"
+
+
+def _primary_runtime_page(ctx: Camoufox):
+    pages = list(ctx.pages)
+    if not pages:
+        return ctx.new_page()
+
+    non_extension = [p for p in pages if not (p.url or "").startswith("moz-extension://")]
+    if non_extension:
+        return non_extension[-1]
+    return pages[-1]
 def _force_non_private_mode(config: dict) -> dict:
     merged = dict(config or {})
     prefs = merged.get("firefox_user_prefs")
@@ -1323,6 +1387,7 @@ def _run_context(
     headless,
     prepare_only: bool,
     install_userscript: bool,
+    addons: list[str] | None = None,
 ) -> None:
     runtime_config = _force_non_private_mode(config)
     _log("INFO", "Launching Camoufox context", prepare_only=prepare_only, private_autostart=runtime_config.get("firefox_user_prefs", {}).get("browser.privatebrowsing.autostart"))
@@ -1333,9 +1398,10 @@ def _run_context(
         proxy=proxy,
         no_viewport=True,
         exclude_addons=[DefaultAddons.UBO],
+        addons=addons or None,
         **runtime_config,
     ) as ctx:
-        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        page = _primary_runtime_page(ctx)
         if prepare_only:
             _ensure_window_ready(page)
             _enforce_tampermonkey_instance_policies(page)
@@ -1423,12 +1489,15 @@ def main() -> None:
     _purge_ublock_addons(profile_dir)
     addon_installed_now = False
     installed_addon_ids: list[str] = []
+    extracted_addons: list[str] = []
     for addon_item in addon_urls:
         try:
-            installed, addon_id = _ensure_addon(profile_dir, addon_item)
+            installed, addon_id, extracted_dir = _ensure_addon(profile_dir, addon_item)
             addon_installed_now = addon_installed_now or installed
             if addon_id:
                 installed_addon_ids.append(addon_id)
+            if extracted_dir:
+                extracted_addons.append(extracted_dir)
         except Exception as exc:
             _log_exception("Addon installation failed", exc, addon_url=addon_item, profile=str(profile_dir))
             fallback_id = _fallback_addon_id(addon_item)
@@ -1457,6 +1526,7 @@ def main() -> None:
             headless,
             prepare_only=True,
             install_userscript=True,
+            addons=extracted_addons,
         )
 
     _run_context(
@@ -1467,6 +1537,7 @@ def main() -> None:
         headless,
         prepare_only=bool(a.prepare_only),
         install_userscript=True,
+        addons=extracted_addons,
     )
     _log("INFO", "Camoufox runner finished", profile=str(profile_dir))
 
