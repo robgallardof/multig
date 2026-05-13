@@ -392,6 +392,17 @@ def _ensure_firefox_prefs(profile_dir: Path) -> None:
         "extensions.unifiedExtensions.enabled": True,
         "browser.privatebrowsing.autostart": False,
         "browser.startup.page": 1,
+        # Tampermonkey compatibility baseline (avoid over-restrictive profile prefs).
+        "dom.indexedDB.enabled": True,
+        "dom.storage.enabled": True,
+        "dom.cache.enabled": True,
+        "dom.serviceWorkers.enabled": True,
+        "dom.workers.enabled": True,
+        "privacy.firstparty.isolate": False,
+        "privacy.resistFingerprinting": False,
+        "privacy.trackingprotection.enabled": False,
+        "privacy.trackingprotection.pbmode.enabled": False,
+        "network.cookie.cookieBehavior": 0,
     }
     lines = []
     for key, value in prefs.items():
@@ -1410,6 +1421,65 @@ def _force_non_private_mode(config: dict) -> dict:
     return merged
 
 
+def _relaxed_tampermonkey_compat_mode_enabled() -> bool:
+    raw = os.getenv("WPLACE_TAMPERMONKEY_RELAXED", "").strip().lower()
+    if not raw:
+        return True
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _apply_relaxed_tampermonkey_compat_prefs(config: dict) -> dict:
+    merged = dict(config or {})
+    prefs = merged.get("firefox_user_prefs")
+    if not isinstance(prefs, dict):
+        prefs = {}
+    compat_prefs = {
+        "dom.indexedDB.enabled": True,
+        "dom.storage.enabled": True,
+        "dom.cache.enabled": True,
+        "dom.serviceWorkers.enabled": True,
+        "dom.workers.enabled": True,
+        "privacy.firstparty.isolate": False,
+        "privacy.resistFingerprinting": False,
+        "privacy.trackingprotection.enabled": False,
+        "privacy.trackingprotection.pbmode.enabled": False,
+        "network.cookie.cookieBehavior": 0,
+    }
+    prefs.update(compat_prefs)
+    merged["firefox_user_prefs"] = prefs
+    return merged
+
+
+def _plain_camoufox_mode_enabled() -> bool:
+    """
+    Disables Camoufox fingerprint hardening knobs that frequently break
+    userscript managers in hardened Firefox forks.
+    """
+    raw = os.getenv("WPLACE_CAMOUFOX_PLAIN_MODE", "").strip().lower()
+    if not raw:
+        return True
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _apply_plain_camoufox_mode(config: dict) -> dict:
+    merged = dict(config or {})
+    # Remove known Camoufox spoofing payload keys entirely to prevent
+    # extension runtime API regressions in Tampermonkey/Violentmonkey.
+    for key in [
+        "fingerprint",
+        "navigator",
+        "webrtc",
+        "canvas",
+        "fonts",
+        "media_devices",
+        "timezone",
+        "locale",
+        "geolocation",
+    ]:
+        merged.pop(key, None)
+    return merged
+
+
 
 
 def _geoip_enabled_by_env() -> bool:
@@ -1427,7 +1497,11 @@ def _run_context(
     addons: list[str] | None = None,
 ) -> None:
     runtime_config = _force_non_private_mode(config)
-    geoip_enabled = _geoip_enabled_by_env() or bool(proxy)
+    if _plain_camoufox_mode_enabled():
+        runtime_config = _apply_plain_camoufox_mode(runtime_config)
+    if _relaxed_tampermonkey_compat_mode_enabled():
+        runtime_config = _apply_relaxed_tampermonkey_compat_prefs(runtime_config)
+    geoip_enabled = (_geoip_enabled_by_env() or bool(proxy)) and not _plain_camoufox_mode_enabled()
     _log("INFO", "Launching Camoufox context", prepare_only=prepare_only, private_autostart=runtime_config.get("firefox_user_prefs", {}).get("browser.privatebrowsing.autostart"), geoip=geoip_enabled, proxy_enabled=bool(proxy))
     with Camoufox(
         persistent_context=True,
