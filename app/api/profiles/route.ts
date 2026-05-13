@@ -172,6 +172,8 @@ export async function POST(req: Request) {
       })));
 
       const sharedEnv: Record<string, string> = {};
+      sharedEnv.WPLACE_CAMOUFOX_PLAIN_MODE = process.env.WPLACE_CAMOUFOX_PLAIN_MODE || "1";
+      sharedEnv.WPLACE_TAMPERMONKEY_RELAXED = process.env.WPLACE_TAMPERMONKEY_RELAXED || "1";
       if (AppConfig.wplaceScriptUrl) {
         sharedEnv.WPLACE_TAMPERMONKEY_SCRIPT_URL = AppConfig.wplaceScriptUrl;
       }
