@@ -1263,15 +1263,39 @@ def _enforce_tampermonkey_instance_policies(page) -> None:
 
 
 def _force_wplace_navigation(page, target_url: str) -> None:
-    expected_host = "wplace.live"
     current = (page.url or "").strip().lower()
     if current.startswith("https://wplace.live") or current.startswith("http://wplace.live"):
         return
-    try:
-        page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
-    except Exception as exc:
-        _log_exception("Forced wplace navigation failed", exc, current_url=current, target_url=target_url)
 
+    attempts = ["domcontentloaded", "commit"]
+    for wait_mode in attempts:
+        try:
+            page.goto(target_url, wait_until=wait_mode, timeout=45000)
+            return
+        except Exception as exc:
+            _log_exception(
+                "Forced wplace navigation attempt failed",
+                exc,
+                current_url=current,
+                target_url=target_url,
+                wait_until=wait_mode,
+            )
+
+    try:
+        replacement_page = page.context.new_page()
+        replacement_page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
+        try:
+            page.close()
+        except Exception:
+            pass
+        _ensure_window_ready(replacement_page)
+    except Exception as exc:
+        _log_exception(
+            "Forced wplace navigation failed in replacement Firefox tab",
+            exc,
+            current_url=current,
+            target_url=target_url,
+        )
 def _effective_target_url(requested_url: str) -> str:
     value = (requested_url or "").strip()
     if not value:
@@ -1411,10 +1435,10 @@ def main() -> None:
             if fallback_id:
                 installed_addon_ids.append(fallback_id)
 
-    # Hard requirement: every launched instance must keep Tampermonkey
+    # Hard requirement: every launched Firefox instance must keep Tampermonkey
     # pinned and keep addons enabled for private windows by default.
-    # Use Firefox addon IDs here (not Chromium extension IDs) so toolbar
-    # pinning and private-browsing policy writes map to real addon entries.
+    # Use Firefox addon IDs so toolbar pinning and private-browsing policy
+    # writes map to real addon entries.
     if TAMPERMONKEY_ADDON_ID not in installed_addon_ids:
         installed_addon_ids.append(TAMPERMONKEY_ADDON_ID)
     installed_addon_ids = list(dict.fromkeys([item for item in installed_addon_ids if item]))
