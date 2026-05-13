@@ -1352,6 +1352,7 @@ ${JSON.stringify(data, null, 2)}`);
                 onRotate={(id) => rotateProxy(id)}
                 onImportCookies={(id) => requestImportCookies(id)}
                 onExportCookies={(id) => exportCookies(id)}
+                onFingerprintInfo={(id) => void showFingerprintInfo(id)}
                 view={profileView}
                 selected={Boolean(selectedProfiles[p.id])}
                 onSelect={(id, selected) => toggleProfileSelection(id, selected)}
