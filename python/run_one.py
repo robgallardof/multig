@@ -675,7 +675,11 @@ def _open_tampermonkey_editor(page, uuid: str) -> bool:
     for route in TAMPERMONKEY_EDITOR_ANCHORS:
         for _ in range(3):
             try:
-                page.goto(f"moz-extension://{uuid}/{route}", wait_until="domcontentloaded")
+                page.goto(
+                    f"moz-extension://{uuid}/{route}",
+                    wait_until="domcontentloaded",
+                    timeout=12000,
+                )
                 page.wait_for_timeout(700)
                 if bool(page.evaluate(editor_ready_script, TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR)):
                     _log("INFO", "Tampermonkey editor opened", route=route)
@@ -1399,6 +1403,7 @@ def _run_context(
         no_viewport=True,
         exclude_addons=[DefaultAddons.UBO],
         addons=addons or None,
+        geoip=True,
         **runtime_config,
     ) as ctx:
         page = _primary_runtime_page(ctx)
