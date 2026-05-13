@@ -47,6 +47,10 @@ echo [step] Installing Python requirements...
 python -m pip install -r python/requirements.txt
 if errorlevel 1 exit /b 1
 
+echo [step] Installing Camoufox GeoIP extra...
+python -m pip install "camoufox[geoip]"
+if errorlevel 1 exit /b 1
+
 echo [step] Fetching Camoufox browser assets...
 python -m camoufox fetch
 if errorlevel 1 exit /b 1

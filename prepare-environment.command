@@ -43,6 +43,9 @@ echo "[step] Upgrading pip..."
 echo "[step] Installing Python requirements..."
 "$PY" -m pip install -r python/requirements.txt
 
+echo "[step] Installing Camoufox GeoIP extra..."
+"$PY" -m pip install "camoufox[geoip]"
+
 echo "[step] Fetching Camoufox browser assets..."
 "$PY" -m camoufox fetch
 

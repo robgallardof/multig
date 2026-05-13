@@ -62,6 +62,10 @@ export class PythonSetup {
     r = spawnSync(py, ["-m", "pip", "install", "-r", "./python/requirements.txt"], { stdio: "inherit" });
     if (r.status !== 0) throw new Error("pip install requirements failed.");
 
+    onProgress?.("Installing Camoufox GeoIP extra");
+    r = spawnSync(py, ["-m", "pip", "install", "camoufox[geoip]"], { stdio: "inherit" });
+    if (r.status !== 0) throw new Error("pip install camoufox[geoip] failed.");
+
     onProgress?.("Downloading Camoufox binaries");
     r = spawnSync(py, ["-m", "camoufox", "fetch"], { stdio: "inherit" });
     if (r.status !== 0) throw new Error("camoufox fetch failed.");

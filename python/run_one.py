@@ -1383,6 +1383,12 @@ def _force_non_private_mode(config: dict) -> dict:
     return merged
 
 
+
+
+def _geoip_enabled_by_env() -> bool:
+    raw = os.getenv("CAMOUFOX_GEOIP", "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
 def _run_context(
     profile_dir: Path,
     proxy,
@@ -1395,6 +1401,7 @@ def _run_context(
 ) -> None:
     runtime_config = _force_non_private_mode(config)
     _log("INFO", "Launching Camoufox context", prepare_only=prepare_only, private_autostart=runtime_config.get("firefox_user_prefs", {}).get("browser.privatebrowsing.autostart"))
+    geoip_enabled = _geoip_enabled_by_env()
     with Camoufox(
         persistent_context=True,
         user_data_dir=str(profile_dir),
@@ -1403,7 +1410,7 @@ def _run_context(
         no_viewport=True,
         exclude_addons=[DefaultAddons.UBO],
         addons=addons or None,
-        geoip=True,
+        geoip=geoip_enabled,
         **runtime_config,
     ) as ctx:
         page = _primary_runtime_page(ctx)
