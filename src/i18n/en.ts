@@ -26,6 +26,7 @@ export const en = {
     sync: "Sync",
     importCookies: "Import cookies",
     exportCookies: "Export cookies",
+    fingerprintInfo: "Fingerprint info",
     copy: "Copy",
     clearFilters: "Clear filters",
     show: "Show",

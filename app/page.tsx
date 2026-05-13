@@ -747,6 +747,26 @@ export default function HomePage() {
   }
 
 
+
+  async function showFingerprintInfo(id: string) {
+    try {
+      const profile = profiles.find((p) => p.id === id);
+      const r = await fetch(`/api/fingerprint?id=${encodeURIComponent(id)}`, { cache: "no-store" });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await safeJson<Record<string, unknown>>(r);
+      const title = profile ? `${profile.name} (${profile.id})` : id;
+      window.alert(`${t.actions.fingerprintInfo}
+
+${title}
+
+${JSON.stringify(data, null, 2)}`);
+    } catch (e: any) {
+      showToast(String(e?.message || e));
+      void logClient("error", "Fingerprint info load failed", String(e?.message || e), { profileId: id });
+    }
+  }
+
+
   async function exportCookies(id: string) {
     if (!system?.venvExists) {
       showToast(t.messages.setupRequired);

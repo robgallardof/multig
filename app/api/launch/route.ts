@@ -86,6 +86,8 @@ export async function POST(req: Request) {
     extraEnv.WPLACE_PAWTECT_CONTEXT_PROFILE_JSON = JSON.stringify(
       buildPawtectContextProfile(profile, assigned ?? undefined)
     );
+    extraEnv.WPLACE_CAMOUFOX_PLAIN_MODE = process.env.WPLACE_CAMOUFOX_PLAIN_MODE || "1";
+    extraEnv.WPLACE_TAMPERMONKEY_RELAXED = process.env.WPLACE_TAMPERMONKEY_RELAXED || "1";
     if (AppConfig.wplaceScriptUrl) {
       extraEnv.WPLACE_TAMPERMONKEY_SCRIPT_URL = AppConfig.wplaceScriptUrl;
     }

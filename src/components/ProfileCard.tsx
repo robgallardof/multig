@@ -38,6 +38,7 @@ export type ProfileCardProps = {
   onDelete: (id: string) => void;
   onImportCookies: (id: string) => void;
   onExportCookies: (id: string) => void;
+  onFingerprintInfo: (id: string) => void;
   view: "grid" | "list" | "details";
   selected?: boolean;
   onSelect?: (id: string, selected: boolean) => void;
@@ -156,6 +157,9 @@ export function ProfileCard(props: ProfileCardProps) {
         </button>
         <button className="btn secondary" onClick={() => props.onExportCookies(p.id)} title={t.actions.exportCookies}>
           <span className="row"><EmojiIcon symbol="📤" label="export cookies" size={16} />{t.actions.exportCookies}</span>
+        </button>
+        <button className="btn secondary" onClick={() => props.onFingerprintInfo(p.id)} title={t.actions.fingerprintInfo}>
+          <span className="row"><EmojiIcon symbol="🧬" label="fingerprint info" size={16} />{t.actions.fingerprintInfo}</span>
         </button>
       </div>
 
