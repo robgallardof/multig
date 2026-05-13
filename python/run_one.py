@@ -659,6 +659,24 @@ def _get_webext_uuid(profile_dir: Path, addon_id: str) -> str | None:
     return value
 
 
+
+
+def _is_page_closed(page) -> bool:
+    try:
+        return bool(page.is_closed())
+    except Exception:
+        return True
+
+
+def _safe_wait(page, timeout_ms: int) -> bool:
+    if _is_page_closed(page):
+        return False
+    try:
+        page.wait_for_timeout(timeout_ms)
+        return True
+    except Exception:
+        return False
+
 def _open_tampermonkey_editor(page, uuid: str) -> bool:
     editor_ready_script = """(selector) => {
         const container = document.querySelector(selector);
@@ -680,14 +698,17 @@ def _open_tampermonkey_editor(page, uuid: str) -> bool:
                     wait_until="domcontentloaded",
                     timeout=12000,
                 )
-                page.wait_for_timeout(700)
+                if not _safe_wait(page, 700):
+                    _log("ERROR", "Tampermonkey page closed while opening editor", route=route)
+                    return False
                 if bool(page.evaluate(editor_ready_script, TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR)):
                     _log("INFO", "Tampermonkey editor opened", route=route)
                     return True
             except Exception as exc:
                 _log_exception("Tampermonkey editor route failed", exc, route=route)
                 continue
-            page.wait_for_timeout(400)
+            if not _safe_wait(page, 400):
+                return False
     _log("ERROR", "Tampermonkey editor not available", uuid=uuid)
     return False
 
@@ -1017,7 +1038,9 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
         try:
             pasted = bool(page.evaluate(script, [TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR, normalized]))
             if pasted:
-                page.wait_for_timeout(250)
+                if not _safe_wait(page, 250):
+                    _log("ERROR", "Page closed during direct editor injection")
+                    return False
                 if _editor_content_matches(page, normalized):
                     _log("INFO", "Userscript injected through direct editor API")
                     return True
@@ -1036,7 +1059,9 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
             except Exception:
                 continue
         page.keyboard.insert_text(normalized)
-        page.wait_for_timeout(350)
+        if not _safe_wait(page, 350):
+            _log("ERROR", "Page closed during keyboard injection")
+            return False
         if _editor_content_matches(page, normalized):
             _log("INFO", "Userscript injected via keyboard insert_text")
             return True
@@ -1052,7 +1077,9 @@ def _set_tampermonkey_editor_code(page, code: str) -> bool:
                 except Exception:
                     continue
             page.keyboard.insert_text(normalized)
-            page.wait_for_timeout(350)
+            if not _safe_wait(page, 350):
+                _log("ERROR", "Page closed during tab-focus injection")
+                return False
             if _editor_content_matches(page, normalized):
                 _log("INFO", "Userscript injected after tab focus fallback")
                 return True
@@ -1136,7 +1163,8 @@ def _save_tampermonkey_editor(page) -> None:
     for shortcut in ("Control+S", "Meta+S"):
         try:
             page.keyboard.press(shortcut)
-            page.wait_for_timeout(250)
+            if not _safe_wait(page, 250):
+                return
         except Exception:
             continue
 
@@ -1166,7 +1194,9 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
         pasted = _set_tampermonkey_editor_code(page, code)
         if pasted:
             break
-        page.wait_for_timeout(500)
+        if not _safe_wait(page, 500):
+            _log("ERROR", "Page closed while retrying userscript paste")
+            return False
 
     if not pasted:
         _log("ERROR", "Userscript not pasted after retries", retries=3)
@@ -1186,7 +1216,9 @@ def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_p
     except Exception:
         pass
 
-    page.wait_for_timeout(1200)
+    if not _safe_wait(page, 1200):
+        _log("ERROR", "Page closed after saving userscript")
+        return False
     _log("INFO", "Userscript saved in Tampermonkey")
     return True
 
@@ -1207,7 +1239,9 @@ def _install_wplace_script(ctx: Camoufox, profile_dir: Path, page) -> None:
         _log("INFO", "Userscript marker already present, skipping install", marker=str(marker))
         return
     _close_tampermonkey_welcome(ctx)
-    page.wait_for_timeout(1500)
+    if not _safe_wait(page, 1500):
+        _log("ERROR", "Page closed before userscript install", profile=str(profile_dir))
+        return
 
     # Deterministic path: download script content and paste it
     # directly in Tampermonkey editor.
@@ -1218,7 +1252,9 @@ def _install_wplace_script(ctx: Camoufox, profile_dir: Path, page) -> None:
         local_script,
     )
 
-    page.wait_for_timeout(1500)
+    if not _safe_wait(page, 1500):
+        _log("ERROR", "Page closed after userscript install", profile=str(profile_dir))
+        return
     if success:
         marker.write_text("installed")
         _log("INFO", "Userscript installation completed", marker=str(marker))
@@ -1352,14 +1388,19 @@ def _force_wplace_navigation(page, target_url: str) -> None:
             current_url=current,
             target_url=target_url,
         )
-def _effective_target_url(requested_url: str) -> str:
+def _normalize_target_url(requested_url: str) -> str:
     value = (requested_url or "").strip()
     if not value:
         return "https://wplace.live"
+    return value
+
+
+def _effective_target_url_for_prepare(requested_url: str) -> str:
+    value = _normalize_target_url(requested_url)
     lower = value.lower()
     if "wplace.live" in lower:
         return "https://wplace.live"
-    _log("INFO", "Overriding non-wplace URL with wplace.live", requested_url=value)
+    _log("INFO", "Prepare flow overriding URL with wplace.live", requested_url=value)
     return "https://wplace.live"
 
 
@@ -1400,8 +1441,8 @@ def _run_context(
     addons: list[str] | None = None,
 ) -> None:
     runtime_config = _force_non_private_mode(config)
-    _log("INFO", "Launching Camoufox context", prepare_only=prepare_only, private_autostart=runtime_config.get("firefox_user_prefs", {}).get("browser.privatebrowsing.autostart"))
-    geoip_enabled = _geoip_enabled_by_env()
+    geoip_enabled = _geoip_enabled_by_env() or bool(proxy)
+    _log("INFO", "Launching Camoufox context", prepare_only=prepare_only, private_autostart=runtime_config.get("firefox_user_prefs", {}).get("browser.privatebrowsing.autostart"), geoip=geoip_enabled, proxy_enabled=bool(proxy))
     with Camoufox(
         persistent_context=True,
         user_data_dir=str(profile_dir),
@@ -1495,8 +1536,9 @@ def main() -> None:
     profile_dir = Path(a.profile)
     addon_url = (a.addon_url or "").strip() or TAMPERMONKEY_ADDON_URL
     addon_urls = _addon_urls(addon_url)
-    target_url = _effective_target_url(a.url)
-    _log("INFO", "Starting Camoufox runner", profile=str(profile_dir), prepare_only=bool(a.prepare_only), url=target_url)
+    runtime_target_url = _normalize_target_url(a.url)
+    prepare_target_url = _effective_target_url_for_prepare(a.url)
+    _log("INFO", "Starting Camoufox runner", profile=str(profile_dir), prepare_only=bool(a.prepare_only), runtime_url=runtime_target_url, prepare_url=prepare_target_url)
     _ensure_firefox_prefs(profile_dir)
     _purge_ublock_addons(profile_dir)
     addon_installed_now = False
@@ -1534,7 +1576,7 @@ def main() -> None:
             profile_dir,
             proxy,
             config,
-            target_url,
+            prepare_target_url,
             headless,
             prepare_only=True,
             install_userscript=True,
@@ -1545,10 +1587,10 @@ def main() -> None:
         profile_dir,
         proxy,
         config,
-        target_url,
+        runtime_target_url,
         headless,
         prepare_only=bool(a.prepare_only),
-        install_userscript=True,
+        install_userscript=bool(a.prepare_only),
         addons=extracted_addons,
     )
     _log("INFO", "Camoufox runner finished", profile=str(profile_dir))
