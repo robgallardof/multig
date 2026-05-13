@@ -90,6 +90,9 @@ export default function HomePage() {
   const [logView, setLogView] = useState<"cards" | "list">("cards");
   const [selectedProfiles, setSelectedProfiles] = useState<Record<string, boolean>>({});
   const [importingCookies, setImportingCookies] = useState(false);
+  const [fingerprintModalOpen, setFingerprintModalOpen] = useState(false);
+  const [fingerprintModalTitle, setFingerprintModalTitle] = useState("");
+  const [fingerprintData, setFingerprintData] = useState<Record<string, unknown> | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const wplaceFileInputRef = useRef<HTMLInputElement | null>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -755,11 +758,9 @@ export default function HomePage() {
       if (!r.ok) throw new Error(await r.text());
       const data = await safeJson<Record<string, unknown>>(r);
       const title = profile ? `${profile.name} (${profile.id})` : id;
-      window.alert(`${t.actions.fingerprintInfo}
-
-${title}
-
-${JSON.stringify(data, null, 2)}`);
+      setFingerprintModalTitle(title);
+      setFingerprintData(data);
+      setFingerprintModalOpen(true);
     } catch (e: any) {
       showToast(String(e?.message || e));
       void logClient("error", "Fingerprint info load failed", String(e?.message || e), { profileId: id });
@@ -1460,6 +1461,28 @@ ${JSON.stringify(data, null, 2)}`);
       <div className="footer">
         {t.footer.copyright} • {t.footer.by}
       </div>
+
+
+      {fingerprintModalOpen && (
+        <div className="modalBg" role="dialog" aria-modal="true" aria-label={t.actions.fingerprintInfo}>
+          <div className="modal" style={{ maxWidth: 760 }}>
+            <div className="modalHead">
+              <p className="modalTitle">
+                <span className="row"><EmojiIcon symbol="🧬" label="fingerprint info" size={16} />{t.actions.fingerprintInfo}</span>
+              </p>
+              <button className="btn secondary" onClick={() => setFingerprintModalOpen(false)} title={t.actions.cancel}>
+                <EmojiIcon symbol="✖️" label="close" size={16} />
+              </button>
+            </div>
+            <div className="hr" />
+            <p className="small" style={{ marginTop: 0 }}>{fingerprintModalTitle}</p>
+            <pre className="fingerprintJson">{JSON.stringify(fingerprintData, null, 2)}</pre>
+            <div className="row" style={{ justifyContent: "flex-end", marginTop: 14 }}>
+              <button className="btn secondary" onClick={() => setFingerprintModalOpen(false)}>{t.actions.cancel}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div style={{
