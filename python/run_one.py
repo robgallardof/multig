@@ -156,6 +156,27 @@ def _should_refresh_cached_addon(path: Path, url: str) -> bool:
     return age_seconds >= max_age_seconds
 
 
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _sync_extension_xpi(source: Path, target: Path) -> bool:
+    """Returns True when extension payload was copied/updated."""
+    if target.exists():
+        try:
+            if _file_sha256(source) == _file_sha256(target):
+                return False
+        except Exception:
+            pass
+    copyfile(source, target)
+    return True
+
 def _addon_id_from_xpi(path: Path) -> str:
     with zipfile.ZipFile(path, "r") as zf:
         manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
@@ -179,10 +200,13 @@ def _extract_addon_for_camoufox(addon_path: Path) -> Path:
     extract_root = _data_dir() / "addons_extracted"
     extract_root.mkdir(parents=True, exist_ok=True)
     target = extract_root / addon_path.stem
+    signature_file = target / ".addon.sha256"
 
-    manifest_target = target / "manifest.json"
-    if manifest_target.exists() and manifest_target.is_file():
-        return target
+    source_signature = _file_sha256(addon_path)
+    if signature_file.exists():
+      existing_signature = signature_file.read_text(encoding="utf-8", errors="ignore").strip()
+      if existing_signature == source_signature and (target / "manifest.json").exists():
+          return target
 
     if target.exists():
         for child in target.rglob("*"):
@@ -197,8 +221,10 @@ def _extract_addon_for_camoufox(addon_path: Path) -> Path:
 
     with zipfile.ZipFile(addon_path, "r") as zf:
         zf.extractall(target)
+    manifest_target = target / "manifest.json"
     if not manifest_target.exists():
         raise ValueError(f"Extracted addon missing manifest.json: {addon_path}")
+    signature_file.write_text(source_signature, encoding="utf-8")
     return target
 def _ensure_addon(profile_dir: Path, addon_url: str) -> tuple[bool, str, str]:
     addon_path = _addon_cache_path(addon_url)
@@ -207,11 +233,9 @@ def _ensure_addon(profile_dir: Path, addon_url: str) -> tuple[bool, str, str]:
     extensions_dir = profile_dir / "extensions"
     extensions_dir.mkdir(parents=True, exist_ok=True)
     target = extensions_dir / f"{addon_id}.xpi"
+    installed_or_updated = _sync_extension_xpi(addon_path, target)
     extracted_dir = _extract_addon_for_camoufox(addon_path)
-    if target.exists():
-        return (False, addon_id, str(extracted_dir))
-    copyfile(addon_path, target)
-    return (True, addon_id, str(extracted_dir))
+    return (installed_or_updated, addon_id, str(extracted_dir))
 
 
 def _fallback_addon_id(addon_url: str) -> str | None:

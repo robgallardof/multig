@@ -83,7 +83,13 @@ export function buildCamoufoxOptions(profile: Profile, proxy?: ProxyMeta) {
       "dom.disable_window_move_resize": false,
       "extensions.autoDisableScopes": 0,
       "extensions.enabledScopes": 15,
+      "extensions.allowPrivateBrowsingByDefault": true,
       "xpinstall.enabled": true,
+      "layers.acceleration.disabled": true,
+      "gfx.webrender.force-disabled": true,
+      "gfx.webrender.software": true,
+      "gfx.webrender.force-angle": false,
+      "media.hardware-video-decoding.enabled": false,
     },
   };
 }
