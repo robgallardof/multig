@@ -53,6 +53,7 @@ def _normalize_cookie(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
     domain = raw.get("domain")
+    url = raw.get("url")
     if domain:
         domain = str(domain)
         host_only = raw.get("hostOnly")
@@ -61,6 +62,8 @@ def _normalize_cookie(raw: dict[str, Any]) -> dict[str, Any]:
         if host_only and domain.startswith("."):
             domain = domain.lstrip(".")
         cookie["domain"] = domain
+    elif isinstance(url, str) and url.startswith(("http://", "https://")):
+        cookie["url"] = url
 
     secure = raw.get("secure")
     if secure is not None:
@@ -123,6 +126,8 @@ def _with_context(profile_dir: str, fn) -> Any:
 
 def _import_cookies(profile_dir: str) -> None:
     payload = _load_input_json()
+    if isinstance(payload, dict):
+        payload = payload.get("cookies")
     if not isinstance(payload, list):
         raise ValueError("Cookies JSON must be an array.")
     cookies = [_normalize_cookie(item) for item in payload]
@@ -145,6 +150,8 @@ def _import_cookies_batch() -> None:
             raise ValueError("Each batch item must be an object.")
         profile_dir = item.get("profile")
         raw_cookies = item.get("cookies")
+        if isinstance(raw_cookies, dict):
+            raw_cookies = raw_cookies.get("cookies")
         if not profile_dir or not isinstance(profile_dir, str):
             raise ValueError("Each batch item requires a valid profile path.")
         if not isinstance(raw_cookies, list):

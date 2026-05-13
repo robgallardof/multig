@@ -15,6 +15,11 @@ type ProxyMeta = {
 
 type PawtectContextProfile = Record<string, string | number | boolean | Array<string> | null>;
 
+type WebGlConfig = {
+  vendor: string;
+  renderer: string;
+};
+
 const localeByCountry: Record<string, LocaleConfig> = {
   AR: { locale: "es-AR", language: "es-AR", timezone: "America/Argentina/Buenos_Aires", acceptLanguage: "es-AR,es;q=0.9,en;q=0.8" },
   BR: { locale: "pt-BR", language: "pt-BR", timezone: "America/Sao_Paulo", acceptLanguage: "pt-BR,pt;q=0.9,en;q=0.8" },
@@ -35,19 +40,29 @@ const osDefaults = {
   windows: {
     platform: "Win32",
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
-    fonts: ["Segoe UI", "Arial", "Times New Roman", "Courier New"],
+    fonts: ["Segoe UI", "Arial", "Times New Roman", "Courier New", "Calibri", "Cambria", "Verdana", "Tahoma", "Trebuchet MS"],
+    webgl: { vendor: "Google Inc. (Intel)", renderer: "ANGLE (Intel, Intel(R) UHD Graphics Direct3D11 vs_5_0 ps_5_0)" },
   },
   mac: {
     platform: "MacIntel",
     userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.5; rv:128.0) Gecko/20100101 Firefox/128.0",
-    fonts: ["SF Pro Text", "Helvetica Neue", "Arial", "Menlo"],
+    fonts: ["SF Pro Text", "Helvetica Neue", "Arial", "Menlo", "Lucida Grande", "Geneva", "Avenir Next", "Monaco"],
+    webgl: { vendor: "Apple Inc.", renderer: "Apple GPU" },
   },
   linux: {
     platform: "Linux x86_64",
     userAgent: "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0",
-    fonts: ["Ubuntu", "DejaVu Sans", "Noto Sans", "Liberation Sans"],
+    fonts: ["Ubuntu", "DejaVu Sans", "Noto Sans", "Liberation Sans", "Cantarell", "Droid Sans", "Nimbus Sans", "FreeSans"],
+    webgl: { vendor: "Mesa/X.org", renderer: "llvmpipe (LLVM 17.0, 256 bits)" },
   },
 } as const;
+
+const FALLBACK_LOCALE: LocaleConfig = {
+  locale: "en-US",
+  language: "en-US",
+  timezone: "America/New_York",
+  acceptLanguage: "en-US,en;q=0.9",
+};
 
 /**
  * Builds Camoufox runtime options for a profile.
@@ -61,12 +76,7 @@ export function buildCamoufoxOptions(profile: Profile, proxy?: ProxyMeta) {
   const os = osDefaults[osType] ?? osDefaults.windows;
   const camoufoxOs = osType === "mac" ? "macos" : osType;
   const countryCode = proxy?.countryCode ? proxy.countryCode.toUpperCase() : "US";
-  const locale = localeByCountry[countryCode] ?? {
-    locale: "en-US",
-    language: "en-US",
-    timezone: "UTC",
-    acceptLanguage: "en-US,en;q=0.9",
-  };
+  const locale = localeByCountry[countryCode] ?? FALLBACK_LOCALE;
 
   return {
     os: camoufoxOs,
@@ -104,12 +114,7 @@ export function buildPawtectContextProfile(profile: Profile, proxy?: ProxyMeta):
   const osType = profile.osType ?? "windows";
   const os = osDefaults[osType] ?? osDefaults.windows;
   const countryCode = proxy?.countryCode ? proxy.countryCode.toUpperCase() : "US";
-  const locale = localeByCountry[countryCode] ?? {
-    locale: "en-US",
-    language: "en-US",
-    timezone: "UTC",
-    acceptLanguage: "en-US,en;q=0.9",
-  };
+  const locale = localeByCountry[countryCode] ?? FALLBACK_LOCALE;
 
   const [language, region = "US"] = locale.locale.split("-");
 
@@ -126,6 +131,8 @@ export function buildPawtectContextProfile(profile: Profile, proxy?: ProxyMeta):
     "navigator.hardwareConcurrency": 8,
     "navigator.maxTouchPoints": osType === "windows" ? 1 : 0,
     "navigator.doNotTrack": "1",
+    "webGl:vendor": (os.webgl as WebGlConfig).vendor,
+    "webGl:renderer": (os.webgl as WebGlConfig).renderer,
     "proxy:countryCode": countryCode,
     "proxy:cityName": proxy?.cityName || "",
   };

@@ -577,12 +577,14 @@ export default function HomePage() {
       } catch {
         throw new Error(t.messages.cookiesInvalid);
       }
-      if (!Array.isArray(parsed)) throw new Error(t.messages.cookiesInvalid);
+      const maybeKgmc = parsed && typeof parsed === "object" ? (parsed as { cookies?: unknown }).cookies : undefined;
+      const normalized = Array.isArray(parsed) ? parsed : (Array.isArray(maybeKgmc) ? maybeKgmc : null);
+      if (!normalized) throw new Error(t.messages.cookiesInvalid);
 
       const r = await fetch(`/api/profiles/${encodeURIComponent(profileId)}/cookies`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cookies: parsed }),
+        body: JSON.stringify({ cookies: normalized }),
       });
       if (!r.ok) throw new Error(await r.text());
       showToast(t.messages.cookiesImported);
@@ -790,6 +792,16 @@ export default function HomePage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+
+      const kgmcBlob = new Blob([JSON.stringify({ format: "kgmc-cookie", version: 1, cookies: j.cookies || [] }, null, 2)], { type: "application/json" });
+      const kgmcUrl = URL.createObjectURL(kgmcBlob);
+      const kgmcA = document.createElement("a");
+      kgmcA.href = kgmcUrl;
+      kgmcA.download = `${name || "profile"}-cookies.kgmc`;
+      document.body.appendChild(kgmcA);
+      kgmcA.click();
+      kgmcA.remove();
+      URL.revokeObjectURL(kgmcUrl);
       showToast(t.messages.cookiesExported);
     } catch (e: any) {
       showToast(`Error: ${String(e?.message || e)}`);
