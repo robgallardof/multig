@@ -3,6 +3,7 @@ import { ProxyAssignmentService } from "../../../../../src/server/proxyAssignmen
 import { ProfileRepositorySqlite } from "../../../../../src/server/profileRepositorySqlite";
 import { listPublicProfiles } from "../../../../../src/server/profilePresenter";
 import { LogRepository } from "../../../../../src/server/logRepository";
+import { WebshareSyncService } from "../../../../../src/server/webshareSyncService";
 
 /**
  * POST /api/profiles/:id/assign-proxy
@@ -22,6 +23,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
     if (profile.useProxy === false) {
       return NextResponse.json({ error: "proxy disabled for profile" }, { status: 400 });
+    }
+    try {
+      await WebshareSyncService.ensureFresh({ maxAgeMs: 60_000 });
+    } catch (error: any) {
+      LogRepository.warn("Webshare auto-sync failed before proxy rotation", String(error?.message || error), {
+        profileId: id,
+      });
     }
     if (proxyId) {
       ProxyAssignmentService.assign(id, proxyId);

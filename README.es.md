@@ -90,7 +90,7 @@ WPLACE_PREPARE_ON_CREATE=1 npm run dev
 ## Addons
 
 Cada instancia nueva incluye:
-- Tampermonkey (con acceso a ventana privada activado por defecto)
+- Tampermonkey Beta (`firefox-current-beta.xpi`, con acceso a ventana privada activado por defecto)
 
 Addons opcionales:
 - JShelter (`javascript-restrictor`) solo si `WPLACE_ENABLE_JSHELTER=true`
@@ -117,7 +117,7 @@ docker compose up --build
 
 - Si no abre instancias: ejecuta **Prepare environment** y valida Python 3.10+.
 - Si falla userscript: valida conectividad a la URL raw del script.
-- Si migras script y quieres reinstalar: elimina `profiles/<id>/.wplace_userscript_installed`.
+- Si migras script y quieres reinstalar: elimina `profiles/<id>/.wplace_userscript_installed_beta`.
 - Si usas Linux sin `DISPLAY`, el runner puede cambiar a modo virtual/headless.
 
 ## Arquitectura

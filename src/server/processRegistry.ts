@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { AppPaths } from "./paths";
 import { LogRepository } from "./logRepository";
 
@@ -136,8 +137,19 @@ export class ProcessRegistry {
     let stopped = false;
     if (ProcessRegistry.isPidAliveForProfile(entry.pid, profileId)) {
       try {
-        process.kill(entry.pid, "SIGTERM");
-        stopped = true;
+        if (process.platform === "win32") {
+          const result = spawnSync("taskkill", ["/PID", String(entry.pid), "/T", "/F"], {
+            windowsHide: true,
+            stdio: "ignore",
+          });
+          stopped = result.status === 0;
+          if (!stopped) {
+            throw new Error(`taskkill exited with status ${result.status ?? "unknown"}`);
+          }
+        } else {
+          process.kill(entry.pid, "SIGTERM");
+          stopped = true;
+        }
       } catch (e: any) {
         LogRepository.warn("Failed to stop Camoufox process", String(e?.message || e), { profileId, pid: entry.pid });
       }

@@ -65,7 +65,7 @@ These scripts:
 ## Addons
 
 Every new instance includes:
-- Tampermonkey (private-window access enabled by default)
+- Tampermonkey Beta (`firefox-current-beta.xpi`, private-window access enabled by default)
 
 Optional addons:
 - JShelter (`javascript-restrictor`) only if `WPLACE_ENABLE_JSHELTER=true`

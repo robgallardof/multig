@@ -18,6 +18,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import warnings
 import zipfile
 import hashlib
 from pathlib import Path
@@ -25,7 +26,12 @@ from shutil import copyfile
 from camoufox import DefaultAddons
 from camoufox.sync_api import Camoufox
 
-TAMPERMONKEY_ADDON_URL = "https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/"
+# Plain compatibility mode intentionally avoids Camoufox geo spoofing while a
+# proxy is active. Suppress the corresponding advisory so it is not ingested as
+# a multi-line ERROR by the application log collector on every successful run.
+warnings.filterwarnings("ignore", message=r"When using a proxy, it is heavily recommended.*")
+
+TAMPERMONKEY_ADDON_URL = "https://www.tampermonkey.net/xpi/firefox-current-beta.xpi"
 JSHELTER_ADDON_URL = "https://addons.mozilla.org/firefox/downloads/latest/javascript-restrictor/latest.xpi"
 WPLACE_SCRIPT_DEFAULT = (
     "https://github.com/robgallardof/kglacer-macro/raw/refs/heads/main/dist.user.js"
@@ -40,7 +46,8 @@ TAMPERMONKEY_EDITOR_ANCHORS = (
 TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR = "#td_bmV3LXVzZXItc2NyaXB0X2VkaXQ"
 
 
-TAMPERMONKEY_ADDON_ID = "firefox@tampermonkey.net"
+TAMPERMONKEY_ADDON_ID = "firefoxbeta@tampermonkey.net"
+TAMPERMONKEY_LEGACY_ADDON_ID = "firefox@tampermonkey.net"
 
 
 def _tampermonkey_dashboard_url(profile_dir: Path) -> str:
@@ -135,21 +142,23 @@ def _addon_cache_path(addon_url: str) -> Path:
     return _data_dir() / "addons" / f"addon-{digest}.xpi"
 
 
-def _download_addon(path: Path, url: str) -> None:
+def _download_addon(path: Path, url: str) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     source_url = _resolve_addon_download_url(url)
     if path.exists() and not _should_refresh_cached_addon(path, source_url):
-        return
+        return False
     tmp_path = path.with_suffix(".tmp")
     with urllib.request.urlopen(source_url) as response:
         tmp_path.write_bytes(response.read())
     tmp_path.replace(path)
+    return True
 
 
 def _should_refresh_cached_addon(path: Path, url: str) -> bool:
     if not path.exists():
         return True
-    if "/latest/" not in url:
+    rolling_release = "/latest/" in url or "firefox-current-beta.xpi" in url.lower()
+    if not rolling_release:
         return False
     max_age_seconds = 60 * 60 * 24
     age_seconds = time.time() - path.stat().st_mtime
@@ -228,20 +237,24 @@ def _extract_addon_for_camoufox(addon_path: Path) -> Path:
     return target
 def _ensure_addon(profile_dir: Path, addon_url: str) -> tuple[bool, str, str]:
     addon_path = _addon_cache_path(addon_url)
-    _download_addon(addon_path, addon_url)
+    downloaded = _download_addon(addon_path, addon_url)
     addon_id = _addon_id_from_xpi(addon_path)
     extensions_dir = profile_dir / "extensions"
     extensions_dir.mkdir(parents=True, exist_ok=True)
     target = extensions_dir / f"{addon_id}.xpi"
-    installed_or_updated = _sync_extension_xpi(addon_path, target)
+    installed_or_updated = _sync_extension_xpi(addon_path, target) or downloaded
     extracted_dir = _extract_addon_for_camoufox(addon_path)
-    return (installed_or_updated, addon_id, str(extracted_dir))
+    # Tampermonkey Beta is profile-installed below so its activation and
+    # storage survive restarts. Passing the same ID as a temporary addon would
+    # race Firefox's app-profile registration.
+    runtime_dir = "" if addon_id == TAMPERMONKEY_ADDON_ID else str(extracted_dir)
+    return (installed_or_updated, addon_id, runtime_dir)
 
 
 def _fallback_addon_id(addon_url: str) -> str | None:
     normalized = (addon_url or "").strip().lower()
     if "tampermonkey" in normalized:
-        return "firefox@tampermonkey.net"
+        return TAMPERMONKEY_ADDON_ID
     if "javascript-restrictor" in normalized or "jshelter" in normalized:
         return "jshelter@jshelter.org"
     return None
@@ -263,6 +276,9 @@ def _set_addons_private_mode(profile_dir: Path, addon_ids: list[str], allowed: b
             payload = {}
 
     updated = False
+    if TAMPERMONKEY_ADDON_ID in addon_ids and TAMPERMONKEY_LEGACY_ADDON_ID in payload:
+        payload.pop(TAMPERMONKEY_LEGACY_ADDON_ID, None)
+        updated = True
     for addon_id in addon_ids:
         if not addon_id:
             continue
@@ -315,9 +331,102 @@ def _purge_ublock_addons(profile_dir: Path) -> None:
     if removed:
         _log("INFO", "Removed uBlock addon artifacts from profile", removed=removed, profile=str(profile_dir))
 
+
+def _purge_legacy_tampermonkey(profile_dir: Path) -> None:
+    """Removes the stable package and its generated Firefox registration."""
+    extensions_dir = profile_dir / "extensions"
+    removed: list[str] = []
+    if extensions_dir.exists():
+        for name in (
+            TAMPERMONKEY_LEGACY_ADDON_ID,
+            f"{TAMPERMONKEY_LEGACY_ADDON_ID}.xpi",
+        ):
+            item = extensions_dir / name
+            if not item.exists():
+                continue
+            try:
+                if item.is_file() or item.is_symlink():
+                    item.unlink(missing_ok=True)
+                elif item.is_dir():
+                    for child in sorted(item.rglob("*"), reverse=True):
+                        if child.is_file() or child.is_symlink():
+                            child.unlink(missing_ok=True)
+                        elif child.is_dir():
+                            child.rmdir()
+                    item.rmdir()
+                removed.append(name)
+            except Exception as exc:
+                _log_exception("Failed to remove profile Tampermonkey artifact", exc, path=str(item))
+
+    # A removed stable XPI can remain registered in Firefox's generated addon
+    # database. Rebuilding it lets Firefox discover only the Beta package.
+    extensions_db = profile_dir / "extensions.json"
+    has_managed_record = False
+    if extensions_db.exists():
+        try:
+            text = extensions_db.read_text(encoding="utf-8", errors="ignore")
+            has_managed_record = TAMPERMONKEY_LEGACY_ADDON_ID in text
+        except Exception:
+            has_managed_record = True
+    if removed or has_managed_record:
+        for generated_cache in (extensions_db, profile_dir / "addonStartup.json.lz4"):
+            generated_cache.unlink(missing_ok=True)
+    if removed:
+        _log("INFO", "Removed stable Tampermonkey artifacts", removed=removed, profile=str(profile_dir))
+
+
+def _profile_addon_state(profile_dir: Path, addon_id: str) -> dict | None:
+    extensions_db = profile_dir / "extensions.json"
+    if not extensions_db.exists():
+        return None
+    try:
+        payload = json.loads(extensions_db.read_text(encoding="utf-8", errors="ignore"))
+        addons = payload.get("addons", []) if isinstance(payload, dict) else []
+        for addon in addons:
+            if isinstance(addon, dict) and addon.get("id") == addon_id:
+                return addon
+    except Exception:
+        return None
+    return None
+
+
+def _activate_profile_addon(profile_dir: Path, addon_id: str) -> bool:
+    """Acknowledges a signed profile XPI after Firefox's first discovery pass."""
+    extensions_db = profile_dir / "extensions.json"
+    if not extensions_db.exists():
+        return False
+    try:
+        payload = json.loads(extensions_db.read_text(encoding="utf-8", errors="ignore"))
+        addons = payload.get("addons", []) if isinstance(payload, dict) else []
+        target = next(
+            (addon for addon in addons if isinstance(addon, dict) and addon.get("id") == addon_id),
+            None,
+        )
+        if target is None:
+            return False
+        target.update({
+            "active": True,
+            "visible": True,
+            "userDisabled": False,
+            "appDisabled": False,
+            "embedderDisabled": False,
+            "softDisabled": False,
+            "foreignInstall": False,
+            "seen": True,
+        })
+        tmp_path = extensions_db.with_suffix(".json.tmp")
+        tmp_path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        tmp_path.replace(extensions_db)
+        return True
+    except Exception as exc:
+        _log_exception("Failed to activate profile addon", exc, addon_id=addon_id)
+        return False
+
 def _is_ublock_url(url: str) -> bool:
     value = (url or "").lower()
     return "ublock" in value or "u-block" in value
+def _is_tampermonkey_url(url: str) -> bool:
+    return "tampermonkey" in (url or "").lower()
 def _addon_urls(addon_url: str | None) -> list[str]:
     urls: list[str] = [TAMPERMONKEY_ADDON_URL]
     if _read_env_flag(os.getenv("WPLACE_ENABLE_JSHELTER", "")):
@@ -333,6 +442,13 @@ def _addon_urls(addon_url: str | None) -> list[str]:
     for item in urls:
         normalized = item.strip()
         if not normalized or normalized in seen:
+            continue
+        if _is_tampermonkey_url(normalized) and normalized != TAMPERMONKEY_ADDON_URL:
+            _log(
+                "INFO",
+                "Skipping alternate Tampermonkey package; Beta is enforced",
+                addon_url=normalized,
+            )
             continue
         if _is_ublock_url(normalized):
             _log("INFO", "Skipping uBlock addon preload (default disabled)", addon_url=normalized)
@@ -404,7 +520,7 @@ def _wplace_script_url() -> str:
 
 
 def _wplace_marker(profile_dir: Path) -> Path:
-    return profile_dir / ".wplace_userscript_installed"
+    return profile_dir / ".wplace_userscript_installed_beta"
 
 
 def _read_env_flag(value: str) -> bool:
@@ -621,6 +737,16 @@ def _get_webext_uuid(profile_dir: Path, addon_id: str) -> str | None:
     return value
 
 
+def _wait_for_webext_uuid(profile_dir: Path, addon_id: str, timeout_seconds: float = 15.0) -> str | None:
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        uuid = _get_webext_uuid(profile_dir, addon_id)
+        if uuid:
+            return uuid
+        time.sleep(0.25)
+    return None
+
+
 
 
 def _is_page_closed(page) -> bool:
@@ -657,10 +783,18 @@ def _open_tampermonkey_editor(page, uuid: str) -> bool:
             try:
                 page.goto(
                     f"moz-extension://{uuid}/{route}",
-                    wait_until="domcontentloaded",
-                    timeout=12000,
+                    # Tampermonkey Beta keeps some extension documents busy
+                    # while its background context initializes. Waiting for
+                    # DOMContentLoaded can time out even though the editor is
+                    # already usable, so commit first and probe the DOM below.
+                    wait_until="commit",
+                    timeout=6000,
                 )
-                if not _safe_wait(page, 700):
+                try:
+                    page.wait_for_load_state("domcontentloaded", timeout=4000)
+                except Exception:
+                    pass
+                if not _safe_wait(page, 900):
                     _log("ERROR", "Tampermonkey page closed while opening editor", route=route)
                     return False
                 if bool(page.evaluate(editor_ready_script, TAMPERMONKEY_EDITOR_CONTAINER_SELECTOR)):
@@ -1137,7 +1271,7 @@ def _save_tampermonkey_editor(page) -> None:
 
 
 def _install_userscript_via_dashboard(ctx: Camoufox, profile_dir: Path, script_path: Path) -> bool:
-    uuid = _get_webext_uuid(profile_dir, TAMPERMONKEY_ADDON_ID)
+    uuid = _wait_for_webext_uuid(profile_dir, TAMPERMONKEY_ADDON_ID)
     if not uuid:
         _log("ERROR", "Tampermonkey UUID not found in profile", profile=str(profile_dir))
         return False
@@ -1269,7 +1403,7 @@ def _enforce_tampermonkey_instance_policies(page) -> None:
 
     script = """
         () => {
-          const card = document.querySelector('addon-card[addon-id="firefox@tampermonkey.net"]');
+          const card = document.querySelector('addon-card[addon-id="firefoxbeta@tampermonkey.net"]');
           if (!card) return { found: false };
           const root = card.shadowRoot || card;
           const radios = root.querySelectorAll('input[type="radio"][name*="private"], input[type="radio"][name*="incognito"]');
@@ -1551,13 +1685,12 @@ def main() -> None:
     _log("INFO", "Starting Camoufox runner", profile=str(profile_dir), prepare_only=bool(a.prepare_only), runtime_url=runtime_target_url, prepare_url=prepare_target_url)
     _ensure_firefox_prefs(profile_dir)
     _purge_ublock_addons(profile_dir)
-    addon_installed_now = False
+    _purge_legacy_tampermonkey(profile_dir)
     installed_addon_ids: list[str] = []
     extracted_addons: list[str] = []
     for addon_item in addon_urls:
         try:
-            installed, addon_id, extracted_dir = _ensure_addon(profile_dir, addon_item)
-            addon_installed_now = addon_installed_now or installed
+            _installed, addon_id, extracted_dir = _ensure_addon(profile_dir, addon_item)
             if addon_id:
                 installed_addon_ids.append(addon_id)
             if extracted_dir:
@@ -1576,9 +1709,10 @@ def main() -> None:
 
     _set_addons_private_mode(profile_dir, installed_addon_ids, allowed=True)
 
-    if a.prepare_only and addon_installed_now:
-        # Firefox/Camoufox can require one startup cycle after copying the XPI
-        # before Tampermonkey starts intercepting .user.js installs.
+    beta_state = _profile_addon_state(profile_dir, TAMPERMONKEY_ADDON_ID)
+    if beta_state is None:
+        # The signed XPI is discovered on the first Firefox startup. Complete
+        # that short cycle before acknowledging and using it in the real run.
         _run_context(
             profile_dir,
             proxy,
@@ -1586,9 +1720,12 @@ def main() -> None:
             prepare_target_url,
             headless,
             prepare_only=True,
-            install_userscript=True,
+            install_userscript=False,
             addons=extracted_addons,
         )
+
+    if not _activate_profile_addon(profile_dir, TAMPERMONKEY_ADDON_ID):
+        _log("ERROR", "Tampermonkey Beta could not be activated", profile=str(profile_dir))
 
     _run_context(
         profile_dir,

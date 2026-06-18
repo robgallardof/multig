@@ -105,7 +105,7 @@ docker compose up --build
 
 - Si no abre instancias: ejecuta **Prepare environment** y valida Python 3.10+.
 - Si falla userscript: valida conectividad a la URL raw del script.
-- Si migras script y quieres reinstalar: elimina `profiles/<id>/.wplace_userscript_installed`.
+- Si migras script y quieres reinstalar: elimina `profiles/<id>/.wplace_userscript_installed_beta`.
 - Si usas Linux sin `DISPLAY`, el runner puede cambiar a modo virtual/headless.
 
 ## Arquitectura

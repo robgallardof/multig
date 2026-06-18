@@ -261,6 +261,9 @@ export class Db {
         countryCode TEXT NULL,
         cityName TEXT NULL,
         source TEXT NOT NULL,
+        unavailableUntil TEXT NULL,
+        lastError TEXT NULL,
+        lastCheckedAt TEXT NULL,
         createdAt TEXT NOT NULL
       );
 
@@ -310,6 +313,18 @@ export class Db {
 
     if (!hasColumn("proxies", "cityName")) {
       db.exec("ALTER TABLE proxies ADD COLUMN cityName TEXT NULL");
+    }
+
+    if (!hasColumn("proxies", "unavailableUntil")) {
+      db.exec("ALTER TABLE proxies ADD COLUMN unavailableUntil TEXT NULL");
+    }
+
+    if (!hasColumn("proxies", "lastError")) {
+      db.exec("ALTER TABLE proxies ADD COLUMN lastError TEXT NULL");
+    }
+
+    if (!hasColumn("proxies", "lastCheckedAt")) {
+      db.exec("ALTER TABLE proxies ADD COLUMN lastCheckedAt TEXT NULL");
     }
   }
 }

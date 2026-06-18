@@ -70,8 +70,8 @@ export const es = {
     webshareUsernamePlaceholder: "Usuario proxy",
     websharePassword: "Password (opcional)",
     websharePasswordPlaceholder: "Password proxy",
-    addonUrl: "URL del addon",
-    addonUrlPlaceholder: "https://addons.mozilla.org/.../latest.xpi",
+    addonUrl: "URL de addon adicional",
+    addonUrlPlaceholder: "https://ejemplo.com/extension.xpi",
     wplaceMode: "Wplace",
     wplaceTokens: "Tokens de Wplace (uno por línea)",
     wplaceTokensPlaceholder: "Pega cada valor de token en su propia línea o separado por comas",
@@ -170,7 +170,7 @@ export const es = {
     profileProxyPending: "Pendiente",
     profileProxyDisabled: "Desactivado",
     profileDetailCreated: "Creado",
-    addonHelper: "Pega la URL (XPI) del addon que quieres precargar. Deja vacío para usar Tampermonkey por defecto.",
+    addonHelper: "Tampermonkey Beta se instala y actualiza automáticamente en todos los perfiles. Aquí puedes agregar otro addon XPI opcional.",
     avatarNote: "Los avatares se generan automáticamente a partir del nombre del perfil.",
     webshareSecurityNote:
       "Tu token/credenciales se guardan en la base de datos y encriptados. Puedes verlos bajo demanda en esta vista. " +

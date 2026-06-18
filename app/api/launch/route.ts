@@ -3,7 +3,7 @@ import { CamoufoxLauncher } from "../../../src/server/camoufoxLauncher";
 import { ProfileRepositorySqlite } from "../../../src/server/profileRepositorySqlite";
 import { ProxyAssignmentService } from "../../../src/server/proxyAssignmentService";
 import { SettingsRepository } from "../../../src/server/settingsRepository";
-import { WebshareSyncService } from "../../../src/server/webshareSyncService";
+import { ProxyRuntimeService } from "../../../src/server/proxyRuntimeService";
 import { buildCamoufoxOptions, buildPawtectContextProfile } from "../../../src/server/fingerprintConfig";
 import { LogRepository } from "../../../src/server/logRepository";
 import { AppConfig } from "../../../src/server/appConfig";
@@ -42,40 +42,12 @@ export async function POST(req: Request) {
   try {
     const settings = await SettingsRepository.load();
     const proxyEnabled = profile.useProxy !== false;
-    let assigned = proxyEnabled ? ProxyAssignmentService.getAssigned(id) : null;
+    let assigned = null;
 
     if (!proxyEnabled) {
       ProxyAssignmentService.release(id);
     } else {
-      if (proxyId && assigned?.id !== proxyId) {
-        try {
-          ProxyAssignmentService.assign(id, proxyId);
-          assigned = ProxyAssignmentService.getAssigned(id);
-        } catch (e: any) {
-          LogRepository.error("Proxy assignment failed", String(e?.message || e), { profileId: id, proxyId });
-          return NextResponse.json({ error: String(e?.message || e) }, { status: 400 });
-        }
-      }
-
-      if (!assigned) {
-        try {
-          assigned = ProxyAssignmentService.assignRandom(id);
-        } catch (e: any) {
-          if (settings.webshare?.token) {
-            try {
-              await WebshareSyncService.sync();
-              assigned = ProxyAssignmentService.assignRandom(id);
-            } catch (syncError: any) {
-              LogRepository.error(
-                "Proxy sync failed while launching profile",
-                String(syncError?.message || syncError),
-                { profileId: id }
-              );
-              assigned = null;
-            }
-          }
-        }
-      }
+      assigned = await ProxyRuntimeService.prepare(id, launchUrl, settings.webshare, proxyId);
     }
 
     const proxyServer = assigned ? `http://${assigned.host}:${assigned.port}` : undefined;

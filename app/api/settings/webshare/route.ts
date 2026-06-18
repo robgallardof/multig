@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { SettingsRepository } from "../../../../src/server/settingsRepository";
 import type { AppSettings } from "../../../../src/server/settingsTypes";
+import { WebshareSyncService } from "../../../../src/server/webshareSyncService";
+import { ProxyPoolRepository } from "../../../../src/server/proxyPoolRepository";
+import { LogRepository } from "../../../../src/server/logRepository";
 
 /**
  * Returns the settings view for the UI.
@@ -65,7 +68,16 @@ export async function POST(req: Request) {
   };
 
   await SettingsRepository.save(settings);
-  return NextResponse.json(toPublic(settings));
+  let syncError: string | undefined;
+  if (settings.webshare?.token) {
+    try {
+      await WebshareSyncService.sync();
+    } catch (error: any) {
+      syncError = String(error?.message || error);
+      LogRepository.warn("Webshare settings saved but automatic sync failed", syncError);
+    }
+  }
+  return NextResponse.json({ ...toPublic(settings), syncError });
 }
 
 /**
@@ -79,5 +91,6 @@ export async function DELETE() {
   const settings = await SettingsRepository.load();
   settings.webshare = undefined;
   await SettingsRepository.save(settings);
+  ProxyPoolRepository.reconcileSource("webshare", []);
   return NextResponse.json(toPublic(settings));
 }

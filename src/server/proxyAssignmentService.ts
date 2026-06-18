@@ -22,8 +22,11 @@ export class ProxyAssignmentService {
   public static assign(profileId: string, proxyId: string): void {
     const db = Db.get();
 
-    const proxy = db.prepare("SELECT id, host, port FROM proxies WHERE id=?").get(proxyId) as any;
+    const proxy = db.prepare("SELECT id, host, port, unavailableUntil FROM proxies WHERE id=?").get(proxyId) as any;
     if (!proxy) throw new Error("Proxy not found.");
+    if (proxy.unavailableUntil && String(proxy.unavailableUntil) > new Date().toISOString()) {
+      throw new Error("Proxy is temporarily unavailable.");
+    }
 
     const now = new Date().toISOString();
 

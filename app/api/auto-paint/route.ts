@@ -5,6 +5,7 @@ import { ProfileRepositorySqlite } from "../../../src/server/profileRepositorySq
 import { CamoufoxLauncher } from "../../../src/server/camoufoxLauncher";
 import { buildCamoufoxOptions, buildPawtectContextProfile } from "../../../src/server/fingerprintConfig";
 import { ProxyAssignmentService } from "../../../src/server/proxyAssignmentService";
+import { ProxyRuntimeService } from "../../../src/server/proxyRuntimeService";
 
 export async function GET() {
   const s = await SettingsRepository.load();
@@ -53,13 +54,24 @@ export async function POST(req: Request) {
   }
 
   const url = (profile.url || "https://wplace.live").trim() || "https://wplace.live";
-  const assigned = profile.useProxy === false ? null : (ProxyAssignmentService.getAssigned(id) || ProxyAssignmentService.assignRandom(id));
+  const assigned = profile.useProxy === false
+    ? (ProxyAssignmentService.release(id), null)
+    : await ProxyRuntimeService.prepare(id, url, s.webshare);
   const proxyServer = assigned ? `http://${assigned.host}:${assigned.port}` : undefined;
-  const pid = CamoufoxLauncher.launch(id, url, proxyServer, undefined, undefined, buildCamoufoxOptions(profile, assigned || undefined), s.addonUrl, {
+  const pid = CamoufoxLauncher.launch(
+    id,
+    url,
+    proxyServer,
+    s.webshare?.username,
+    s.webshare?.password,
+    buildCamoufoxOptions(profile, assigned || undefined),
+    s.addonUrl,
+    {
     WPLACE_PAWTECT_CONTEXT_PROFILE_JSON: JSON.stringify(buildPawtectContextProfile(profile, assigned || undefined)),
     WPLACE_AUTO_PAINT: "1",
     WPLACE_ENABLED: "1",
-  });
+    },
+  );
   if (pid > 0) {
     ProcessRegistry.register(id, pid, url);
   }

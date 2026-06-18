@@ -16,6 +16,7 @@ export type WebshareProxyItem = {
   host: string;
   port: number;
   username?: string;
+  valid?: boolean;
   // password is never returned to the UI
   country_code?: string;
   city_name?: string;
@@ -88,7 +89,9 @@ export class WebshareClient {
       qs.set("mode", "direct");
     }
 
-    const key = qs.toString();
+    // A changed API token can point to a completely different proxy pool.
+    // Keep cached responses isolated by account credentials.
+    const key = `${ws.token}:${qs.toString()}`;
     const cached = WebshareCache.get(key);
     if (cached) return cached;
 
@@ -122,6 +125,7 @@ export class WebshareClient {
         host,
         port,
         username: x.username ? String(x.username) : undefined,
+        valid: typeof x.valid === "boolean" ? x.valid : undefined,
         country_code: x.country_code ? String(x.country_code) : undefined,
         city_name: x.city_name ? String(x.city_name) : undefined,
       };

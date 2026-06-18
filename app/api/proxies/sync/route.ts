@@ -26,8 +26,21 @@ export async function POST(req: Request) {
       search,
     });
 
-    LogRepository.info("Webshare proxies synced", { imported: res.imported, ordering, search });
-    return NextResponse.json({ ok: true, imported: res.imported });
+    LogRepository.info("Webshare proxies synced", {
+      imported: res.imported,
+      removed: res.removed,
+      releasedProfiles: res.releasedProfileIds.length,
+      complete: res.complete,
+      ordering,
+      search,
+    });
+    return NextResponse.json({
+      ok: true,
+      imported: res.imported,
+      removed: res.removed,
+      releasedProfiles: res.releasedProfileIds.length,
+      complete: res.complete,
+    });
   } catch (e: any) {
     LogRepository.error("Webshare proxies sync failed", String(e?.message || e), { ordering, search });
     return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });

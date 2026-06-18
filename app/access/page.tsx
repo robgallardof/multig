@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { en, es } from "../../src/i18n";
 import type { Translations } from "../../src/i18n";
 
-export default function AccessPage() {
+function AccessPageContent() {
   const searchParams = useSearchParams();
   const nextPath = useMemo(() => searchParams.get("next") || "/", [searchParams]);
   const [token, setToken] = useState("");
@@ -123,5 +123,13 @@ export default function AccessPage() {
         <p className="small">{t.access.helper}</p>
       </div>
     </main>
+  );
+}
+
+export default function AccessPage() {
+  return (
+    <Suspense fallback={null}>
+      <AccessPageContent />
+    </Suspense>
   );
 }
