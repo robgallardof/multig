@@ -12,6 +12,8 @@ Platform to manage multiple persistent browser profiles with Camoufox + Next.js 
 - Wplace mode with Tampermonkey and JShelter preinstalled.
 - `.kgm` (recommended) and `.wbot` bundle upload support.
 - Proxy assignment per profile.
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Requirements
 
@@ -19,6 +21,8 @@ Platform to manage multiple persistent browser profiles with Camoufox + Next.js 
 - Python 3.10+
 - Python download: https://www.python.org/downloads/
 - Node.js download: https://nodejs.org/en/download
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Local setup (step by step)
 
@@ -48,12 +52,16 @@ These scripts:
 - install dependencies with `pnpm` (if available) or `npm`,
 - install Python requirements from `python/requirements.txt`,
 - run `python -m camoufox fetch`.
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Docker
 
 ```bash
 docker compose up --build
 ```
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Create profiles
 
@@ -71,6 +79,8 @@ docker compose up --build
 3. Paste tokens (one per line / comma separated).
 4. Optionally select base profile.
 5. Save.
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Addons
 
@@ -82,13 +92,15 @@ Optional addons:
 - extra addon URLs via `WPLACE_EXTRA_ADDON_URLS`
 
 If JShelter is enabled, it is also kept enabled for private windows by default.
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Start scripts (auto npm/pnpm)
 
 - Windows: `start.bat` (auto-detects pnpm, fallback to npm)
 - macOS/Linux: `./start.command` (auto-detects pnpm, fallback to npm)
 
-<p align="center"><a href="#top">Back to top</a></p>
+<p align="center"><a href="#top"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/btn-back-to-top-outline-sm-dark.svg" /><img src="assets/readme-builder/kit/btn-back-to-top-outline-sm-light.svg" alt="Back to top" height="34" /></picture></a></p>
 
 <!-- readme-builder:signature:start -->
 <p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-en-dark.svg" /><img src="assets/readme/brand/signature-en-light.svg" alt="MultiGlacer / Roberto Gallardo" width="100%" /></picture></a></p>

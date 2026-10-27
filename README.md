@@ -14,6 +14,8 @@ Plataforma para manejar múltiples perfiles persistentes de navegador con Camouf
 - Copia automática del userscript **kglacer-macro**.
 - Gestión de proxy por perfil (asignación aleatoria sin repetir en activos).
 - Inyección de localStorage por instancia (incluyendo idioma y flags de serial).
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Requisitos
 
@@ -22,6 +24,8 @@ Plataforma para manejar múltiples perfiles persistentes de navegador con Camouf
 - Sistema con escritorio gráfico si vas a abrir Camoufox en modo visible.
 - Descarga Python: https://www.python.org/downloads/
 - Descarga Node.js: https://nodejs.org/en/download
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Instalación paso a paso (local)
 
@@ -60,12 +64,16 @@ Estos scripts:
 - instalan dependencias con `pnpm` (si existe) o `npm`,
 - instalan `python/requirements.txt`,
 - ejecutan `python -m camoufox fetch`.
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Docker
 
 ```bash
 docker compose up --build
 ```
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Crear perfiles paso a paso
 
@@ -86,6 +94,8 @@ docker compose up --build
 6. Click en **Save**.
 
 > Importante: ya no deberías tener que maximizar manualmente Camoufox para que el flujo continúe. El runner intenta traer ventana al frente y maximizarla automáticamente.
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Notas de preparación Wplace
 
@@ -95,6 +105,8 @@ docker compose up --build
 ```bash
 WPLACE_PREPARE_ON_CREATE=1 npm run dev
 ```
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Scripts de arranque rápido
 
@@ -104,6 +116,8 @@ WPLACE_PREPARE_ON_CREATE=1 npm run dev
 - Windows npm: `start-npm.bat` (o `start.bat`)
 - Windows pnpm: `start-pnpm.bat`
 - Inicio automático (elige pnpm/npm): `start.bat` (Windows) y `./start.command` (macOS/Linux)
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Troubleshooting
 
@@ -111,6 +125,8 @@ WPLACE_PREPARE_ON_CREATE=1 npm run dev
 - Si falla userscript: valida conectividad a la URL raw del script.
 - Si migras script y quieres reinstalar: elimina `profiles/<id>/.wplace_userscript_installed_beta`.
 - Si usas Linux sin `DISPLAY`, el runner puede cambiar a modo virtual/headless.
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Arquitectura
 
@@ -119,12 +135,14 @@ WPLACE_PREPARE_ON_CREATE=1 npm run dev
 - Lógica server: `src/server/*`
 - Runner Python Camoufox: `python/run_one.py`
 - Persistencia: `data/app.db`, `data/settings.enc.json`, `profiles/<id>/`
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
 
 ## Branding
 
 © 2026 King Gallardo
 
-<p align="center"><a href="#top">Volver al inicio</a></p>
+<p align="center"><a href="#top"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/btn-volver-al-inicio-outline-sm-dark.svg" /><img src="assets/readme-builder/kit/btn-volver-al-inicio-outline-sm-light.svg" alt="Volver al inicio" height="34" /></picture></a></p>
 
 <!-- readme-builder:signature:start -->
 <p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-es-dark.svg" /><img src="assets/readme/brand/signature-es-light.svg" alt="MultiGlacer / Roberto Gallardo" width="100%" /></picture></a></p>
