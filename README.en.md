@@ -1,4 +1,8 @@
-# MultiGlacer
+<a id="top"></a>
+
+<h1 align="center">MultiGlacer</h1>
+
+<p align="center">Manage independent browser profiles from one panel. Prepare the environment, create a profile and open it when you need it.</p>
 
 Platform to manage multiple persistent browser profiles with Camoufox + Next.js + Python.
 
@@ -45,6 +49,12 @@ These scripts:
 - install Python requirements from `python/requirements.txt`,
 - run `python -m camoufox fetch`.
 
+## Docker
+
+```bash
+docker compose up --build
+```
+
 ## Create profiles
 
 ### Normal profile
@@ -73,13 +83,13 @@ Optional addons:
 
 If JShelter is enabled, it is also kept enabled for private windows by default.
 
-## Docker
-
-```bash
-docker compose up --build
-```
-
 ## Start scripts (auto npm/pnpm)
 
 - Windows: `start.bat` (auto-detects pnpm, fallback to npm)
 - macOS/Linux: `./start.command` (auto-detects pnpm, fallback to npm)
+
+<p align="center"><a href="#top">Back to top</a></p>
+
+<!-- readme-builder:signature:start -->
+<p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-en-dark.svg" /><img src="assets/readme/brand/signature-en-light.svg" alt="MultiGlacer / Roberto Gallardo" width="100%" /></picture></a></p>
+<!-- readme-builder:signature:end -->

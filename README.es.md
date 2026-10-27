@@ -1,4 +1,8 @@
-# MultiGlacer
+<a id="top"></a>
+
+<h1 align="center">MultiGlacer</h1>
+
+<p align="center">Organiza perfiles de navegador independientes desde un panel. Prepara el entorno, crea un perfil y ábrelo cuando lo necesites.</p>
 
 Plataforma para manejar múltiples perfiles persistentes de navegador con Camoufox + Next.js + Python.
 
@@ -57,6 +61,12 @@ Estos scripts:
 - instalan `python/requirements.txt`,
 - ejecutan `python -m camoufox fetch`.
 
+## Docker
+
+```bash
+docker compose up --build
+```
+
 ## Crear perfiles paso a paso
 
 ### Perfil normal
@@ -77,16 +87,6 @@ Estos scripts:
 
 > Importante: ya no deberías tener que maximizar manualmente Camoufox para que el flujo continúe. El runner intenta traer ventana al frente y maximizarla automáticamente.
 
-## Notas de preparación Wplace
-
-- Por defecto, la creación de perfiles responde rápido y **no bloquea** esperando preparación pesada de navegador.
-- Si necesitas forzar preparación al crear, puedes usar:
-
-```bash
-WPLACE_PREPARE_ON_CREATE=1 npm run dev
-```
-
-
 ## Addons
 
 Cada instancia nueva incluye:
@@ -98,10 +98,13 @@ Addons opcionales:
 
 Si habilitas JShelter, también queda activado para modo privado por defecto.
 
-## Docker
+## Notas de preparación Wplace
+
+- Por defecto, la creación de perfiles responde rápido y **no bloquea** esperando preparación pesada de navegador.
+- Si necesitas forzar preparación al crear, puedes usar:
 
 ```bash
-docker compose up --build
+WPLACE_PREPARE_ON_CREATE=1 npm run dev
 ```
 
 ## Scripts de arranque rápido
@@ -131,3 +134,9 @@ docker compose up --build
 ## Branding
 
 © 2026 King Gallardo
+
+<p align="center"><a href="#top">Volver al inicio</a></p>
+
+<!-- readme-builder:signature:start -->
+<p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-es-dark.svg" /><img src="assets/readme/brand/signature-es-light.svg" alt="MultiGlacer / Roberto Gallardo" width="100%" /></picture></a></p>
+<!-- readme-builder:signature:end -->

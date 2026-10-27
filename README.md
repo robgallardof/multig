@@ -1,4 +1,8 @@
-# MultiGlacer
+<a id="top"></a>
+
+<h1 align="center">MultiGlacer</h1>
+
+<p align="center">Organiza perfiles de navegador independientes desde un panel. Prepara el entorno, crea un perfil y ábrelo cuando lo necesites.</p>
 
 Plataforma para manejar múltiples perfiles persistentes de navegador con Camoufox + Next.js + Python.
 
@@ -57,6 +61,12 @@ Estos scripts:
 - instalan `python/requirements.txt`,
 - ejecutan `python -m camoufox fetch`.
 
+## Docker
+
+```bash
+docker compose up --build
+```
+
 ## Crear perfiles paso a paso
 
 ### Perfil normal
@@ -86,12 +96,6 @@ Estos scripts:
 WPLACE_PREPARE_ON_CREATE=1 npm run dev
 ```
 
-## Docker
-
-```bash
-docker compose up --build
-```
-
 ## Scripts de arranque rápido
 
 - Linux npm: `./start-npm.sh` (o `./start.sh`)
@@ -119,3 +123,9 @@ docker compose up --build
 ## Branding
 
 © 2026 King Gallardo
+
+<p align="center"><a href="#top">Volver al inicio</a></p>
+
+<!-- readme-builder:signature:start -->
+<p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-es-dark.svg" /><img src="assets/readme/brand/signature-es-light.svg" alt="MultiGlacer / Roberto Gallardo" width="100%" /></picture></a></p>
+<!-- readme-builder:signature:end -->
