@@ -6,14 +6,21 @@
 
 Plataforma para manejar múltiples perfiles persistentes de navegador con Camoufox + Next.js + Python.
 
+<!-- kit:nav -->
+<p align="center"><a href="#instalación-paso-a-paso-local"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-01-dark.svg" /><img src="assets/readme-builder/kit/nav-es-01-light.svg" alt="Instalación" height="44" /></picture></a>&nbsp;
+<a href="#docker"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-02-dark.svg" /><img src="assets/readme-builder/kit/nav-es-02-light.svg" alt="Docker" height="34" /></picture></a>&nbsp;
+<a href="#crear-perfiles-paso-a-paso"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-03-dark.svg" /><img src="assets/readme-builder/kit/nav-es-03-light.svg" alt="Crear perfiles" height="34" /></picture></a>&nbsp;
+<a href="README.en.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-04-dark.svg" /><img src="assets/readme-builder/kit/nav-es-04-light.svg" alt="English" height="34" /></picture></a></p>
+<!-- /kit:nav -->
+
 ## Qué hace
 
-- Administra perfiles aislados (cookies, localStorage, huella y estado persistente).
-- Soporta perfiles Wplace con Tampermonkey preinstalado.
-- Permite subir bundles `.kgm` (preferido) y `.wbot` (compatibilidad).
-- Copia automática del userscript **kglacer-macro**.
-- Gestión de proxy por perfil (asignación aleatoria sin repetir en activos).
-- Inyección de localStorage por instancia (incluyendo idioma y flags de serial).
+<!-- kit:features -->
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/features-es-dark.svg" /><img src="assets/readme-builder/kit/features-es-light.svg" alt="Perfiles aislados: Cada perfil guarda sus cookies, localStorage, huella y estado de sesión. · Modo Wplace: Tampermonkey preinstalado; JShelter es opcional. · .kgm / .wbot: Sube bundles .kgm (preferido) o .wbot por compatibilidad. · kglacer-macro: El userscript se copia solo en cada perfil. · Proxy por perfil: Asignación aleatoria sin repetir entre perfiles activos." width="100%" /></picture></p>
+<!-- /kit:features -->
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/diagrams/profiles-es-dark.svg" /><img src="assets/readme/diagrams/profiles-es-light.svg" alt="Flujo de MultiGlacer: preparar el entorno, crear un perfil, asignar proxy y huella, abrir Camoufox y guardar el estado" width="100%" /></picture></p>
+
 <p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
 
 

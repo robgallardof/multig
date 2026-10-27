@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "theme": "nebula",
+  "assets": "assets/readme-builder/kit",
+  "documents": {"README.md": "es", "README.es.md": "es", "README.en.md": "en"},
+  "blocks": [
+    {"id": "nav", "type": "buttons", "items": [
+      {"label": {"en": "Local setup", "es": "Instalación"}, "href": {"en": "#local-setup-step-by-step", "es": "#instalación-paso-a-paso-local"}, "icon": "rocket", "variant": "primary"},
+      {"label": "Docker", "href": "#docker", "icon": "box", "small": true},
+      {"label": {"en": "Create profiles", "es": "Crear perfiles"}, "href": {"en": "#create-profiles", "es": "#crear-perfiles-paso-a-paso"}, "icon": "users", "small": true},
+      {"label": {"en": "Español", "es": "English"}, "href": {"en": "README.es.md", "es": "README.en.md"}, "icon": "globe", "small": true}
+    ]},
+    {"id": "features", "type": "bento", "columns": 3, "cells": [
+      {"span": 2, "icon": "lock", "kicker": {"en": "Profiles", "es": "Perfiles"}, "title": {"en": "Isolated profiles", "es": "Perfiles aislados"},
+       "text": {"en": "Each profile keeps its own cookies, localStorage, fingerprint and session state.", "es": "Cada perfil guarda sus cookies, localStorage, huella y estado de sesión."}},
+      {"icon": "globe", "kicker": "Wplace", "title": {"en": "Wplace mode", "es": "Modo Wplace"},
+       "text": {"en": "Tampermonkey preinstalled; JShelter is optional.", "es": "Tampermonkey preinstalado; JShelter es opcional."}},
+      {"icon": "download", "kicker": "Bundles", "title": ".kgm / .wbot",
+       "text": {"en": "Upload .kgm bundles (preferred) or .wbot for compatibility.", "es": "Sube bundles .kgm (preferido) o .wbot por compatibilidad."}},
+      {"icon": "code", "kicker": "Userscript", "title": "kglacer-macro",
+       "text": {"en": "The userscript is copied into each profile for you.", "es": "El userscript se copia solo en cada perfil."}},
+      {"icon": "branch", "kicker": "Proxy", "title": {"en": "Proxy per profile", "es": "Proxy por perfil"},
+       "text": {"en": "Random assignment, never repeated among active profiles.", "es": "Asignación aleatoria sin repetir entre perfiles activos."}}
+    ]}
+  ]
+}

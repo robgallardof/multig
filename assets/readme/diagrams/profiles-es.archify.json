@@ -1,0 +1,120 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "De la instalación a un perfil abierto",
+    "locale": "es",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/robgallardof/multig.git",
+      "revision": "0dbe450946cbf83af834bc59cd0117dd61d300da"
+    },
+    "output": ".archify/profiles-es-20261027-171307/diagram.html"
+  },
+  "lanes": [
+    {
+      "id": "you",
+      "label": "Tú en el panel"
+    },
+    {
+      "id": "app",
+      "label": "MultiGlacer en tu PC"
+    }
+  ],
+  "mainPath": [
+    "step0",
+    "step1",
+    "step2",
+    "step3",
+    "step4"
+  ],
+  "nodes": [
+    {
+      "id": "step0",
+      "lane": "you",
+      "col": 0,
+      "type": "external",
+      "label": "Preparar una vez",
+      "sublabel": "prepare-environment",
+      "sources": [
+        {
+          "path": "prepare-environment.bat"
+        }
+      ]
+    },
+    {
+      "id": "step1",
+      "lane": "you",
+      "col": 1,
+      "type": "frontend",
+      "label": "Crear un perfil",
+      "sublabel": "normal o Wplace",
+      "sources": [
+        {
+          "path": "app/api/profiles/route.ts"
+        }
+      ]
+    },
+    {
+      "id": "step2",
+      "lane": "app",
+      "col": 2,
+      "type": "backend",
+      "label": "Proxy y huella",
+      "sublabel": "por perfil",
+      "sources": [
+        {
+          "path": "src/server/fingerprintConfig.ts"
+        }
+      ]
+    },
+    {
+      "id": "step3",
+      "lane": "app",
+      "col": 3,
+      "type": "backend",
+      "label": "Abrir Camoufox",
+      "sublabel": "python/run_one.py",
+      "sources": [
+        {
+          "path": "python/run_one.py"
+        }
+      ]
+    },
+    {
+      "id": "step4",
+      "lane": "app",
+      "col": 4,
+      "type": "backend",
+      "label": "Se guarda el estado",
+      "sublabel": "profiles/<id>/",
+      "sources": [
+        {
+          "path": "src/server/db.ts"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge0",
+      "from": "step0",
+      "to": "step1"
+    },
+    {
+      "id": "edge1",
+      "from": "step1",
+      "to": "step2"
+    },
+    {
+      "id": "edge2",
+      "from": "step2",
+      "to": "step3"
+    },
+    {
+      "id": "edge3",
+      "from": "step3",
+      "to": "step4"
+    }
+  ]
+}

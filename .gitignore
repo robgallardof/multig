@@ -123,3 +123,4 @@ data/*.db-wal
 data/runtime_processes.json
 data/settings.enc.json
 data/app_secret.txt
+.archify/

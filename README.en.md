@@ -6,12 +6,21 @@
 
 Platform to manage multiple persistent browser profiles with Camoufox + Next.js + Python.
 
+<!-- kit:nav -->
+<p align="center"><a href="#local-setup-step-by-step"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-en-01-dark.svg" /><img src="assets/readme-builder/kit/nav-en-01-light.svg" alt="Local setup" height="44" /></picture></a>&nbsp;
+<a href="#docker"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-en-02-dark.svg" /><img src="assets/readme-builder/kit/nav-en-02-light.svg" alt="Docker" height="34" /></picture></a>&nbsp;
+<a href="#create-profiles"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-en-03-dark.svg" /><img src="assets/readme-builder/kit/nav-en-03-light.svg" alt="Create profiles" height="34" /></picture></a>&nbsp;
+<a href="README.es.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-en-04-dark.svg" /><img src="assets/readme-builder/kit/nav-en-04-light.svg" alt="Español" height="34" /></picture></a></p>
+<!-- /kit:nav -->
+
 ## Features
 
-- Isolated persistent profiles (cookies, localStorage, fingerprint, session state).
-- Wplace mode with Tampermonkey and JShelter preinstalled.
-- `.kgm` (recommended) and `.wbot` bundle upload support.
-- Proxy assignment per profile.
+<!-- kit:features -->
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/features-en-dark.svg" /><img src="assets/readme-builder/kit/features-en-light.svg" alt="Isolated profiles: Each profile keeps its own cookies, localStorage, fingerprint and session state. · Wplace mode: Tampermonkey preinstalled; JShelter is optional. · .kgm / .wbot: Upload .kgm bundles (preferred) or .wbot for compatibility. · kglacer-macro: The userscript is copied into each profile for you. · Proxy per profile: Random assignment, never repeated among active profiles." width="100%" /></picture></p>
+<!-- /kit:features -->
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/diagrams/profiles-en-dark.svg" /><img src="assets/readme/diagrams/profiles-en-light.svg" alt="MultiGlacer flow: prepare the environment, create a profile, assign proxy and fingerprint, launch Camoufox and keep the state" width="100%" /></picture></p>
+
 <p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
 
 
